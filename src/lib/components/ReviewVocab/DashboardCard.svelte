@@ -96,7 +96,7 @@
 					<span class="text-xs font-medium text-gray-500">上次正确率</span>
 				</div>
 				<div class="text-2xl font-bold text-green-600">
-					{studyLog ? studyLog.accuracyRate : '--'}<span class="text-sm">%</span>
+					{studyLog ? studyLog.accuracyRate : '-- '}<span class="text-sm">%</span>
 				</div>
 			</div>
 

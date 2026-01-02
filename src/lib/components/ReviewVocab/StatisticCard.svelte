@@ -34,11 +34,13 @@
 		statistics().total > 0 ? Math.round((statistics().know / statistics().total) * 100) : 0
 	);
 
-	StudyLog.create({
-		knowCount: statistics().know,
-		vagueCount: statistics().vague,
-		forgetCount: statistics().forget,
-		accuracyRate: masteryRate
+	$effect(() => {
+		StudyLog.create({
+			knowCount: statistics().know,
+			vagueCount: statistics().vague,
+			forgetCount: statistics().forget,
+			accuracyRate: masteryRate
+		});
 	});
 
 	async function handleRestart() {

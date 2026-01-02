@@ -37,7 +37,7 @@ export class StudyLog implements StudyLogData {
 	}
 
 	/**
-	 * 获取今天需要复习的单词
+	 * 获取最近一次复习时间
 	 */
 	static async getLastStudyLog(): Promise<StudyLog | null> {
 		const data = await db.studyLogs.orderBy('createdAt').reverse().first();
