@@ -1,5 +1,5 @@
 <script lang="ts">
-	let { reviewedCount, shouldReviewCount, newVocabCount, onStartReview } = $props();
+	let { studyLog, reviewedCount, shouldReviewCount, newVocabCount, onStartReview } = $props();
 </script>
 
 <!-- 主卡片容器 -->
@@ -47,8 +47,7 @@
 					<span class="text-xs font-medium">复习进度</span>
 				</div>
 				<div class="text-md font-bold text-gray-900">
-					<p class="text-blue-600">{newVocabCount} <span class="text-sm font-norma">新单词</span></p>
-					<p class="text-green-600">
+					<p class="text-2xl text-green-600">
 						{reviewedCount} / {shouldReviewCount} <span class="text-sm font-normal">已复习</span>
 					</p>
 				</div>
@@ -70,10 +69,12 @@
 						stroke-linejoin="round"
 						class="text-orange-500"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg
 					>
-					<span class="text-xs font-medium text-gray-500">连续打卡</span>
+					<span class="text-xs font-medium text-gray-500">新单词</span>
 				</div>
-				<div class="text-2xl font-bold text-gray-900">
-					5 <span class="text-sm font-normal text-gray-500">天</span>
+				<div class="text-md font-bold text-gray-900">
+					<p class="text-2xl text-orange-500">
+						{newVocabCount} <span class="font-norma text-sm">新单词</span>
+					</p>
 				</div>
 			</div>
 
@@ -95,7 +96,7 @@
 					<span class="text-xs font-medium text-gray-500">上次正确率</span>
 				</div>
 				<div class="text-2xl font-bold text-green-600">
-					92<span class="text-sm">%</span>
+					{studyLog ? studyLog.accuracyRate : '--'}<span class="text-sm">%</span>
 				</div>
 			</div>
 
@@ -117,7 +118,16 @@
 					>
 					<span class="text-xs font-medium text-gray-500">上次学习</span>
 				</div>
-				<div class="text-2xl font-bold text-gray-900">10:30</div>
+				<div class="text-2xl font-bold text-gray-900">
+					{#if studyLog}
+						{studyLog.createdAt.toLocaleTimeString(undefined, {
+							hour: '2-digit',
+							minute: '2-digit'
+						})}
+					{:else}
+						--
+					{/if}
+				</div>
 			</div>
 		</div>
 

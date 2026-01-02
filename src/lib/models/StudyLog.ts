@@ -1,0 +1,49 @@
+import { db, type StudyLogData } from '$lib/db';
+
+export class StudyLog implements StudyLogData {
+	id?: number; // 自增主键
+	knowCount: number; // 正确次数
+	vagueCount: number; // 模糊次数
+	forgetCount: number; // 错误次数
+	accuracyRate: number; // 正确率 (knowCount / totalCount)
+	createdAt: Date; // 记录创建日期 (通常用于按天分组查询)
+
+	constructor(data: StudyLogData) {
+		this.id = data.id;
+		this.knowCount = data.knowCount;
+		this.vagueCount = data.vagueCount;
+		this.forgetCount = data.forgetCount;
+		this.accuracyRate = data.accuracyRate;
+		this.createdAt = data.createdAt;
+	}
+
+	static async create(data: Partial<StudyLogData>): Promise<StudyLog> {
+		const now = new Date();
+
+		const raw: StudyLogData = {
+			knowCount: data.knowCount ?? 0,
+			vagueCount: data.vagueCount ?? 0,
+			forgetCount: data.forgetCount ?? 0,
+			accuracyRate: data.accuracyRate ?? 0,
+			createdAt: now
+		};
+
+		// 插入 IndexedDB
+		const id = await db.studyLogs.add(raw);
+		raw.id = id as number;
+
+		// 返回包装后的类实例
+		return new StudyLog(raw);
+	}
+
+	/**
+	 * 获取今天需要复习的单词
+	 */
+	static async getLastStudyLog(): Promise<StudyLog | null> {
+		const data = await db.studyLogs.orderBy('createdAt').reverse().first();
+
+		if (!data) return null;
+
+		return new StudyLog(data);
+	}
+}

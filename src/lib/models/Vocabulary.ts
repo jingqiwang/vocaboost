@@ -1,4 +1,5 @@
 import { db, type VocabularyData } from '$lib/db';
+import { VocabReviewLog } from './VocabReviewLog';
 
 export class Vocabulary implements VocabularyData {
 	id?: number;
@@ -190,7 +191,7 @@ export class Vocabulary implements VocabularyData {
 	 * @returns
 	 */
 	updateNextReview(result: string): Vocabulary {
-		let { interval, easeFactor, knowCount, vagueCount, forgetCount, status } = this;
+		let { interval, easeFactor, knowCount, vagueCount, nextReview, forgetCount, status } = this;
 
 		switch (result) {
 			case 'know':
@@ -224,19 +225,22 @@ export class Vocabulary implements VocabularyData {
 				break;
 		}
 
+		if (result === 'know') {
+			const newNextDate = new Date();
+			newNextDate.setDate(newNextDate.getDate() + interval);
+			newNextDate.setHours(0, 0, 0, 0); // 极其重要：方便查询今天到期的单词
+			nextReview = newNextDate;
+		}
+
+		VocabReviewLog.create(this, result, interval, easeFactor, nextReview);
+
 		this.interval = interval;
 		this.easeFactor = easeFactor;
 		this.knowCount = knowCount;
 		this.vagueCount = vagueCount;
 		this.forgetCount = forgetCount;
 		this.status = status;
-
-		if (result === 'know') {
-			const nextDate = new Date();
-			nextDate.setDate(nextDate.getDate() + interval);
-			nextDate.setHours(0, 0, 0, 0); // 极其重要：方便查询今天到期的单词
-			this.nextReview = nextDate;
-		}
+		this.nextReview = nextReview;
 
 		this.save();
 

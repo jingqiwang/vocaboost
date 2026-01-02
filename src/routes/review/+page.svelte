@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { liveQuery } from 'dexie';
 	import { Vocabulary } from '$lib/models/Vocabulary';
+	import { StudyLog } from '$lib/models/StudyLog';
 
 	import DashboardCard from '$lib/components/ReviewVocab/DashboardCard.svelte';
 	import TestCard from '$lib/components/ReviewVocab/TestCard.svelte';
@@ -40,6 +41,7 @@
 	});
 
 	// ============ 数据查询 ============
+	const studyLog = liveQuery(() => StudyLog.getLastStudyLog());
 	const newVocabularies = liveQuery(() => Vocabulary.getNewVocabularies());
 	const reviewedCount = liveQuery(() => Vocabulary.getTodayReviewedCount());
 	const reviewVocabularies = liveQuery(() => Vocabulary.getReviewVocabularies());
@@ -176,6 +178,7 @@
 <div class="mt-32 flex items-center justify-center bg-gray-100 p-4">
 	{#if currentStep === 'dashboard'}
 		<DashboardCard
+			studyLog={$studyLog ?? null}
 			reviewedCount={$reviewedCount ?? 0}
 			shouldReviewCount={$reviewVocabularies?.length ?? 0}
 			newVocabCount={$newVocabularies?.length ?? 0}

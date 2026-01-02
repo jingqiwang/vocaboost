@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { StudyLog } from '$lib/models/StudyLog';
 	let { reviewSession } = $props();
 
 	// 定义类型
@@ -33,7 +34,14 @@
 		statistics().total > 0 ? Math.round((statistics().know / statistics().total) * 100) : 0
 	);
 
-	function handleRestart() {
+	StudyLog.create({
+		knowCount: statistics().know,
+		vagueCount: statistics().vague,
+		forgetCount: statistics().forget,
+		accuracyRate: masteryRate
+	});
+
+	async function handleRestart() {
 		window.location.reload();
 	}
 </script>
