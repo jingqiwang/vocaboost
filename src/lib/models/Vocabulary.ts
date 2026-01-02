@@ -7,8 +7,9 @@ export class Vocabulary implements VocabularyData {
 	pronunciation?: string; // 发音(选填)
 
 	// 记忆相关的逻辑
-	reviewStatus: string; // 单词状态
+	status: string; // 单词状态
 	nextReview: Date; // 下次复习的时间戳 (重要：用于筛选今天要背的词)
+	reviewedAt?: Date | null; // 记录最近一次复习的时间
 	interval: number; // 复习间隔天数
 	easeFactor: number; // 难度系数 (推荐默认 2.5)
 	knowCount: number; // 记住次数
@@ -23,7 +24,7 @@ export class Vocabulary implements VocabularyData {
 		this.word = data.word;
 		this.description = data.description;
 
-		this.reviewStatus = data.reviewStatus;
+		this.status = data.status;
 		this.easeFactor = data.easeFactor;
 
 		this.interval = data.interval;
@@ -32,6 +33,7 @@ export class Vocabulary implements VocabularyData {
 		this.forgetCount = data.forgetCount;
 
 		this.nextReview = data.nextReview;
+		this.reviewedAt = data.reviewedAt;
 		this.createdAt = data.createdAt;
 		this.updatedAt = data.updatedAt;
 	}
@@ -50,7 +52,7 @@ export class Vocabulary implements VocabularyData {
 			word: data.word,
 			description: data.description,
 			pronunciation: data.pronunciation ?? '',
-			reviewStatus: data.reviewStatus ?? 'new',
+			status: data.status ?? 'new',
 			interval: data.interval ?? 0,
 			easeFactor: data.easeFactor ?? 2.5,
 			knowCount: data.knowCount ?? 0,
@@ -58,7 +60,7 @@ export class Vocabulary implements VocabularyData {
 			forgetCount: data.forgetCount ?? 0,
 
 			nextReview: initialNextReview,
-
+			reviewedAt: null,
 			createdAt: now,
 			updatedAt: now
 		};
@@ -92,8 +94,49 @@ export class Vocabulary implements VocabularyData {
 		const vocabularies = await db.vocabularies
 			.where('createdAt')
 			.between(startOfDay, endOfDay, true, true)
+			.and((v) => v.status === 'new')
 			.reverse()
 			.toArray();
+
+		return vocabularies.map((v) => new Vocabulary(v));
+	}
+
+	/**
+	 * 获取今天（及之前）需要复习的单词总数
+	 * 即 nextReview 小于或等于当前时间的单词数量
+	 */
+	static async getReviewVocabularies(): Promise<Vocabulary[]> {
+		const now = new Date();
+		// 因为 nextReview 在更新时被重置为了 00:00:00，
+		// 使用 belowOrEqual(now) 可以涵盖今天所有到期的词
+		const vocabularies = await db.vocabularies
+			.where('nextReview')
+			.belowOrEqual(now)
+			.and((v) => v.status !== 'mastered')
+			.toArray();
+
+		return vocabularies.map((v) => new Vocabulary(v));
+	}
+
+	/**
+	 * 获取今天已经复习的单词总数
+	 */
+	static async getTodayReviewedCount(): Promise<number> {
+		const now = new Date();
+		const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+		const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+		return await db.vocabularies
+			.where('reviewedAt')
+			.between(startOfDay, endOfDay, true, true)
+			.count();
+	}
+
+	/**
+	 * 获取新的单词
+	 */
+	static async getNewVocabularies(): Promise<Vocabulary[]> {
+		const vocabularies = await db.vocabularies.where({ status: 'new' }).toArray();
 
 		return vocabularies.map((v) => new Vocabulary(v));
 	}
@@ -104,7 +147,7 @@ export class Vocabulary implements VocabularyData {
 	async resetReview(newDescription?: string) {
 		if (newDescription) this.description = newDescription;
 
-		this.reviewStatus = 'new';
+		this.status = 'new';
 		this.interval = 0;
 		this.easeFactor = 2.5;
 		this.knowCount = 0;
@@ -115,7 +158,7 @@ export class Vocabulary implements VocabularyData {
 		now.setHours(0, 0, 0, 0);
 		this.nextReview = now;
 
-        await this.save();
+		await this.save();
 	}
 
 	async delete(): Promise<void> {
@@ -147,50 +190,55 @@ export class Vocabulary implements VocabularyData {
 	 * @returns
 	 */
 	updateNextReview(result: string): Vocabulary {
-		let { interval, easeFactor, knowCount, vagueCount, reviewStatus } = this;
+		let { interval, easeFactor, knowCount, vagueCount, forgetCount, status } = this;
 
 		switch (result) {
 			case 'know':
 				knowCount++;
 				easeFactor += 0.1;
-				reviewStatus = interval >= 30 ? 'mastered' : 'learning';
-				// 间隔计算逻辑：1 -> 6 -> interval * EF
+				status = interval >= 30 ? 'mastered' : 'learning';
+				// 间隔计算逻辑：1 -> 2 -> interval * EF
 				if (knowCount === 1) {
 					interval = 1;
 				} else if (knowCount === 2) {
-					interval = 6;
+					interval = 2;
 				} else {
-					interval = Math.round(interval * easeFactor);
+					interval = Math.max(1, Math.round(interval * easeFactor));
 				}
 				break;
 			case 'vague':
 				// 模糊：不增加成功计数，间隔仅微增，降低 EF
 				vagueCount++;
 				// 模糊处理：间隔只增加 20%，不计入连续成功，EF 轻微惩罚
-				interval = Math.max(1, Math.round(interval * 1.2));
 				easeFactor = Math.max(1.3, easeFactor - 0.15);
-				reviewStatus = 'learning';
+				status = 'learning';
 				break;
 
 			case 'forget':
 				// 忘记：彻底重置
+				forgetCount++;
 				knowCount = 0;
 				interval = 1;
 				easeFactor -= 0.2;
-				reviewStatus = 'learning';
+				status = 'learning';
 				break;
 		}
-
-		const nextDate = new Date();
-		nextDate.setDate(nextDate.getDate() + interval);
-		nextDate.setHours(0, 0, 0, 0); // 极其重要：方便查询今天到期的单词
 
 		this.interval = interval;
 		this.easeFactor = easeFactor;
 		this.knowCount = knowCount;
 		this.vagueCount = vagueCount;
-		this.reviewStatus = reviewStatus;
-		this.nextReview = nextDate;
+		this.forgetCount = forgetCount;
+		this.status = status;
+
+		if (result === 'know') {
+			const nextDate = new Date();
+			nextDate.setDate(nextDate.getDate() + interval);
+			nextDate.setHours(0, 0, 0, 0); // 极其重要：方便查询今天到期的单词
+			this.nextReview = nextDate;
+		}
+
+		this.save();
 
 		return this;
 	}
@@ -202,7 +250,8 @@ export class Vocabulary implements VocabularyData {
 			description: this.description,
 			pronunciation: this.pronunciation,
 
-			reviewStatus: this.reviewStatus,
+			status: this.status,
+			reviewedAt: this.reviewedAt,
 			nextReview: this.nextReview,
 			interval: this.interval,
 			easeFactor: this.easeFactor,

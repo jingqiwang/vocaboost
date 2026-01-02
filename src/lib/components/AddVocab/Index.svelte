@@ -3,7 +3,7 @@
 	import { AudioService } from '$lib/services/AudioService';
 	import { Vocabulary } from '$lib/models/Vocabulary';
 	import Alert from '$lib/components/Alert.svelte';
-	import VocabInput from './VocabInput/Index.svelte';
+	import VocabInput from './VocabInput.svelte';
 	import MeaningInput from './MeaningInput.svelte';
 
 	const vocabSchema = z.object({
@@ -88,11 +88,6 @@
 {/if}
 
 <div class="mb-6 rounded-xl bg-white p-6 shadow-sm sm:p-8">
-	<div class="mb-6 flex items-center gap-2 border-b border-gray-100 pb-4">
-		<span class="text-xl text-gray-700">+</span>
-		<h2 class="text-lg font-semibold text-gray-900">新增词汇</h2>
-	</div>
-
 	<div>
 		<form onsubmit={handleSubmit}>
 			<VocabInput bind:vocab={word} disabled={isLoading} />
@@ -108,7 +103,7 @@
 			<button
 				type="submit"
 				disabled={isLoading}
-				class="button-press mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 py-4 font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+				class="button-press mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-gray-900 py-4 font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
 			>
 				{#if isLoading}
 					<!-- Loading Spinner -->

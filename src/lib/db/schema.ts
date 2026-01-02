@@ -6,8 +6,9 @@ export interface VocabularyData {
 	pronunciation?: string; // 发音(选填)
 
 	// 记忆相关的逻辑
-	reviewStatus: string; // 单词状态
+	status: string; // 单词状态
 	nextReview: Date; // 下次复习的时间戳 (重要：用于筛选今天要背的词)
+    reviewedAt?: Date | null; // 记录最近一次复习的时间
 	interval: number; // 复习间隔天数
 	easeFactor: number; // 难度系数 (推荐默认 2.5)
 	knowCount: number; // 记住次数

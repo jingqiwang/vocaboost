@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Toast from './Toast.svelte';
+	import Toast from '../Toast.svelte';
 	import { AudioService } from '$lib/services/AudioService';
 
 	let { vocab = $bindable() } = $props();

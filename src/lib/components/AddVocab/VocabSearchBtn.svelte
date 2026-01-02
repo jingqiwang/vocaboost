@@ -3,7 +3,7 @@
 </script>
 
 <button
-	class="button-press flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-50 px-5 py-3 transition hover:bg-gray-100 sm:flex-none"
+	class="button-press flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-gray-50 px-5 py-3 transition hover:bg-gray-100 sm:flex-none"
 >
 	<svg class="h-4 w-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 		<path

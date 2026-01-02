@@ -1,17 +1,23 @@
-<script>
-	export let currentPage = 'add';
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state'; // Svelte 5 的新模块
+
+	/**
+	 * 修复 1: 在 Svelte 5 中，不再使用 $:
+	 * 使用 $derived 来根据 page.url.pathname 自动计算 currentPage
+	 * 修复 2: 访问 page 时不要带 $ 符号，因为它不是 Store
+	 */
+	let currentPage = $derived(page.url.pathname === '/' ? 'add' : page.url.pathname.slice(1));
 
 	const navItems = [
-		{ id: 'add', label: '添加', icon: 'plus' },
-		{ id: 'review', label: '复习', icon: 'book' },
-		{ id: 'stats', label: '统计', icon: 'chart' },
-		{ id: 'settings', label: '设置', icon: 'settings' }
-	];
+		{ id: 'add', label: '添加', icon: 'plus', path: '/' },
+		{ id: 'review', label: '复习', icon: 'book', path: '/review' },
+		{ id: 'stats', label: '统计', icon: 'chart', path: '/stats' },
+		{ id: 'settings', label: '设置', icon: 'settings', path: '/settings' }
+	] as const; // 使用 const 断言获得更好的类型推断
 
-	function handleNavClick() {
-		// console.log('导航到:', pageId);
-		// TODO: 使用 SvelteKit 的路由导航
-		// goto(`/${pageId}`);
+	function handleNavClick(path: string): void {
+		goto(path);
 	}
 </script>
 
@@ -20,7 +26,7 @@
 		<div class="flex h-20 items-center justify-around">
 			{#each navItems as item}
 				<button
-					on:click={() => handleNavClick(item.id)}
+					on:click={() => handleNavClick(item.path)}
 					class="button-press flex flex-1 flex-col items-center justify-center gap-1 py-2 transition-all"
 					class:text-gray-400={currentPage !== item.id}
 					class:hover:text-gray-600={currentPage !== item.id}

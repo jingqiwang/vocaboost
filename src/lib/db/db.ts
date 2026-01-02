@@ -7,7 +7,7 @@ const db = new Dexie('vocaboost') as Dexie & {
 };
 
 db.version(1).stores({
-	vocabularies: '++id, status, word, createdAt, nextReview',
+	vocabularies: '++id, status, word, createdAt, nextReview, reviewedAt',
 	audios: 'key'
 });
 

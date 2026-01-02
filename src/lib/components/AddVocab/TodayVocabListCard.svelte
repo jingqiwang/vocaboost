@@ -2,7 +2,7 @@
 	import { liveQuery } from 'dexie';
 	import { Vocabulary } from '$lib/models/Vocabulary';
 	import Alert from '$lib/components/Alert.svelte';
-	import VocabAudioBtn from '$lib/components/VocabAudioBtn.svelte';
+	import AudioBtn from '$lib/components/AddVocab/AudioBtn.svelte';
 
 	let vocabs = liveQuery(() => Vocabulary.getTodayNewVocabularies());
 	let errorMessage = $state('');
@@ -51,7 +51,7 @@
 							<div class="space-y-2">
 								<div class="flex items-center gap-2">
 									<span class="text-lg font-bold text-gray-800">{vocab.word}</span>
-									<VocabAudioBtn bind:vocab={vocab.word} />
+									<AudioBtn bind:vocab={vocab.word} />
 								</div>
 
 								<p class="text-base font-medium text-green-700">{vocab.description}</p>
@@ -77,7 +77,7 @@
 								})} 添加
 							</p>
 
-							<button class="text-red-500" title="删除单词" onclick={() => handleDelete(vocab)}>
+							<button class="text-red-500 cursor-pointer hover:text-red-300" title="删除单词" onclick={() => handleDelete(vocab)}>
 								<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path
 										stroke-linecap="round"

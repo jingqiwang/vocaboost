@@ -1,6 +1,6 @@
 <script lang="ts">
-	import VocabSearchBtn from './VocabSearchBtn.svelte';
-	import VocabAudioBtn from '../VocabAudioBtn.svelte';
+	import SearchBtn from './VocabSearchBtn.svelte';
+	import AudioBtn from './AudioBtn.svelte';
 
 	let { vocab = $bindable() } = $props();
 </script>
@@ -24,10 +24,10 @@
 		/>
 
 		<div class="flex gap-2">
-			<VocabSearchBtn bind:vocab />
-            <div class="rounded-lg bg-gray-50 hover:bg-gray-100 transition flex px-4 py-3">
-                <VocabAudioBtn bind:vocab />
-            </div>
+			<SearchBtn bind:vocab />
+			<div class="flex rounded-lg bg-gray-50 px-4 py-3 transition hover:bg-gray-100">
+				<AudioBtn bind:vocab />
+			</div>
 		</div>
 	</div>
 </div>
