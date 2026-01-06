@@ -143,6 +143,28 @@ export class Vocabulary implements VocabularyData {
 	}
 
 	/**
+	 * 获取所有单词的数量
+	 */
+	static async count(): Promise<number> {
+		return await db.vocabularies.count();
+	}
+
+	/**
+	 * 分页获取单词
+	 */
+	static async paginate(pageIndex: number, pageSize: number): Promise<Vocabulary[]> {
+		const offset = (pageIndex - 1) * pageSize;
+
+		const vocabularies = await db.vocabularies
+			.orderBy('id')
+			.offset(offset)
+			.limit(pageSize)
+			.toArray();
+
+		return vocabularies.map((v) => new Vocabulary(v));
+	}
+
+	/**
 	 * 重置复习进度（回到新词状态）
 	 */
 	async resetReview(newDescription?: string) {

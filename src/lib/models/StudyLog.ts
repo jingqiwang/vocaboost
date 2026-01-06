@@ -36,6 +36,13 @@ export class StudyLog implements StudyLogData {
 		return new StudyLog(raw);
 	}
 
+    /**
+     * 获取学习总数
+     */
+	static async count(): Promise<number> {
+		return db.studyLogs.count();
+	}
+
 	/**
 	 * 获取最近一次复习时间
 	 */

@@ -175,7 +175,7 @@
 	}
 </script>
 
-<div class="mt-32 flex items-center justify-center bg-gray-100 p-4">
+<div class="flex mt-4 items-center justify-center bg-gray-100 p-4">
 	{#if currentStep === 'dashboard'}
 		<DashboardCard
 			studyLog={$studyLog ?? null}
