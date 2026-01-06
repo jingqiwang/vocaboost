@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  vocaboost:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      # Add other environment variables here if needed, e.g.:
+      # - ORIGIN=http://localhost:3000
+    restart: unless-stopped

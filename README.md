@@ -1,38 +1,43 @@
-# sv
+# Vocaboost
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+**Vocaboost** is a personal vocabulary learning assistant designed to help you track, review, and master new words efficiently. Built with SvelteKit, it offers a seamless, offline-first experience.
 
-## Creating a project
+## ✨ Features
 
-If you're seeing this, you've probably already done this step. Congrats!
+- **Offline-First Architecture**: Uses IndexedDB to store all data locally, ensuring fast access and privacy.
+- **Smart Review System**: Track your learning progress with review logs and optimize your study sessions.
+- **Data Synchronization**: Easily backup and sync your data (vocabularies, logs, settings) to a local file.
+- **Visual Statistics**: Gain insights into your learning habits with interactive charts and dashboards.
+- **PWA Support**: Install Vocaboost on your desktop or mobile device for a native app-like experience.
+- **Audio Support**: Manage pronunciation audio blobs locally.
 
-```sh
-# create a new project in the current directory
-npx sv create
+## 🚀 Deployment
 
-# create a new project in my-app
-npx sv create my-app
-```
+The recommended way to deploy Vocaboost is using **Docker Compose**.
 
-## Developing
+### Prerequisites
+- Docker
+- Docker Compose
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+### Quick Start
 
-```sh
-npm run dev
+1.  **Clone or Copy** the project files to your server.
+2.  **Run the application**:
+    ```bash
+    docker compose up -d --build
+    ```
+3.  **Access the app**:
+    Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
+### Docker Commands
 
-## Building
+- **Start**: `docker compose up -d`
+- **Stop**: `docker compose down`
+- **View Logs**: `docker compose logs -f`
+- **Rebuild**: `docker compose up -d --build`
 
-To create a production version of your app:
+---
 
-```sh
-npm run build
-```
+### Manual Deployment (Node.js)
 
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+For instructions on manual deployment without Docker, please refer to [MANUAL_DEPLOY.md](./MANUAL_DEPLOY.md).
