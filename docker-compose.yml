@@ -11,3 +11,5 @@ services:
       # Add other environment variables here if needed, e.g.:
       # - ORIGIN=http://localhost:3000
     restart: unless-stopped
+    volumes:
+      - ~/vocaboost_sync:/root/vocaboost_sync
