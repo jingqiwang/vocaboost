@@ -58,4 +58,37 @@ export class VocabReviewLog implements VocabReviewLogData {
 		// 返回包装后的类实例
 		return new VocabReviewLog(raw);
 	}
+
+	static async count(): Promise<number> {
+		return await db.vocabReviewLogs.count();
+	}
+
+	static async countByResult(result: string): Promise<number> {
+		return await db.vocabReviewLogs.where({ reviewStatus: result }).count();
+	}
+
+	static async getRecentLogs(days: number): Promise<VocabReviewLog[]> {
+		const now = new Date();
+		const startDate = new Date(now);
+		startDate.setDate(now.getDate() - days);
+		startDate.setHours(0, 0, 0, 0);
+
+		const logs = await db.vocabReviewLogs
+			.where('createdAt')
+			.aboveOrEqual(startDate)
+			.toArray();
+
+		return logs.map((log) => new VocabReviewLog(log));
+	}
+
+	static async getLogsByWord(word: string, limit: number = 3): Promise<VocabReviewLog[]> {
+		const logs = await db.vocabReviewLogs
+			.where('word')
+			.equals(word)
+			.reverse()
+			.limit(limit)
+			.toArray();
+
+		return logs.map((log) => new VocabReviewLog(log));
+	}
 }

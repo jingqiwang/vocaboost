@@ -18,6 +18,8 @@
 
 	let word = $state('');
 	let description = $state('');
+	let enResults = $state<{ pos: string; def: string }[]>([]);
+	let searchError = $state('');
 	let errors = $state<{ word?: string; description?: string }>({});
 	let exceptionMessage = $state('');
 	let isLoading = $state(false); // 添加 loading 状态
@@ -90,7 +92,19 @@
 <div class="mb-6 rounded-xl bg-white p-6 shadow-sm sm:p-8">
 	<div>
 		<form onsubmit={handleSubmit}>
-			<VocabInput bind:vocab={word} disabled={isLoading} />
+			<VocabInput
+				bind:vocab={word}
+				disabled={isLoading}
+				on:fillMeaning={(e) => (description = e.detail)}
+				on:searchResults={(e) => {
+					searchError = '';
+					enResults = e.detail;
+				}}
+				on:searchError={(e) => {
+					enResults = [];
+					searchError = e.detail;
+				}}
+			/>
 			{#if errors.word}
 				<Alert type="error" message={errors.word} />
 			{/if}
@@ -98,6 +112,31 @@
 			<MeaningInput bind:meaning={description} disabled={isLoading} />
 			{#if errors.description}
 				<Alert type="error" message={errors.description} />
+			{/if}
+
+			{#if searchError}
+				<Alert type="error" message={searchError} />
+			{:else if enResults.length > 0}
+				<div class="mt-2 rounded-lg border border-gray-200 bg-white p-3">
+					<div class="mb-2 text-xs font-semibold text-gray-500">英英释义</div>
+					<div class="space-y-2">
+						{#each enResults as item}
+							<div class="flex items-start justify-between gap-2 rounded-md border border-gray-100 bg-gray-50/50 p-2">
+								<div class="flex-1">
+									<div class="text-[10px] uppercase tracking-widest text-gray-400">{item.pos}</div>
+									<div class="text-sm text-gray-800">{item.def}</div>
+								</div>
+								<button
+									class="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100"
+									onclick={() => (description = item.def)}
+									title="填充到释义"
+								>
+									填充
+								</button>
+							</div>
+						{/each}
+					</div>
+				</div>
 			{/if}
 
 			<button

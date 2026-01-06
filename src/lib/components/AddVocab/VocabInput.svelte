@@ -1,8 +1,10 @@
 <script lang="ts">
 	import SearchBtn from './VocabSearchBtn.svelte';
 	import AudioBtn from './AudioBtn.svelte';
+	import { createEventDispatcher } from 'svelte';
 
-	let { vocab = $bindable() } = $props();
+	let { vocab = $bindable(), disabled = false } = $props();
+	const dispatch = createEventDispatcher();
 </script>
 
 <div class="mb-6">
@@ -21,10 +23,16 @@
 			autocomplete="off"
 			required
 			pattern="[A-Za-z\s]+"
+			disabled={disabled}
 		/>
 
 		<div class="flex gap-2">
-			<SearchBtn bind:vocab />
+			<SearchBtn
+				bind:vocab
+				on:fillMeaning={(e) => dispatch('fillMeaning', e.detail)}
+				on:searchResults={(e) => dispatch('searchResults', e.detail)}
+				on:searchError={(e) => dispatch('searchError', e.detail)}
+			/>
 			<div class="flex rounded-lg bg-gray-50 px-4 py-3 transition hover:bg-gray-100">
 				<AudioBtn bind:vocab />
 			</div>

@@ -1,5 +1,5 @@
 <script>
-	let { meaning = $bindable() } = $props();
+	let { meaning = $bindable(), disabled = false } = $props();
 </script>
 
 <div class="mb-6">
@@ -12,5 +12,6 @@
 		rows="4"
 		class="w-full resize-none rounded-lg border-0 bg-gray-50 px-4 py-3 text-sm transition focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
 		required
+		disabled={disabled}
 	></textarea>
 </div>

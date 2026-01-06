@@ -150,6 +150,13 @@ export class Vocabulary implements VocabularyData {
 	}
 
 	/**
+	 * 获取指定状态的单词数量
+	 */
+	static async countByStatus(status: string): Promise<number> {
+		return await db.vocabularies.where({ status }).count();
+	}
+
+	/**
 	 * 分页获取单词
 	 */
 	static async paginate(pageIndex: number, pageSize: number): Promise<Vocabulary[]> {
@@ -160,6 +167,33 @@ export class Vocabulary implements VocabularyData {
 			.offset(offset)
 			.limit(pageSize)
 			.toArray();
+
+		return vocabularies.map((v) => new Vocabulary(v));
+	}
+
+	/**
+	 * 搜索单词（支持排序、分页）
+	 */
+	static async search(
+		query: string = '',
+		sortBy: string = 'createdAt',
+		sortOrder: 'asc' | 'desc' = 'desc',
+		pageIndex: number = 1,
+		pageSize: number = 20
+	): Promise<Vocabulary[]> {
+		const offset = (pageIndex - 1) * pageSize;
+		let collection = db.vocabularies.orderBy(sortBy);
+
+		if (sortOrder === 'desc') {
+			collection = collection.reverse();
+		}
+
+		if (query) {
+			const lowerQuery = query.toLowerCase();
+			collection = collection.filter((v) => v.word.toLowerCase().includes(lowerQuery));
+		}
+
+		const vocabularies = await collection.offset(offset).limit(pageSize).toArray();
 
 		return vocabularies.map((v) => new Vocabulary(v));
 	}
@@ -234,6 +268,7 @@ export class Vocabulary implements VocabularyData {
 				vagueCount++;
 				// 模糊处理：间隔只增加 20%，不计入连续成功，EF 轻微惩罚
 				easeFactor = Math.max(1.3, easeFactor - 0.15);
+				interval = Math.max(1, Math.round(interval * 1.2));
 				status = 'learning';
 				break;
 
@@ -242,17 +277,16 @@ export class Vocabulary implements VocabularyData {
 				forgetCount++;
 				knowCount = 0;
 				interval = 1;
-				easeFactor -= 0.2;
+				easeFactor = Math.max(1.3, easeFactor - 0.2);
 				status = 'learning';
 				break;
 		}
 
-		if (result === 'know') {
-			const newNextDate = new Date();
-			newNextDate.setDate(newNextDate.getDate() + interval);
-			newNextDate.setHours(0, 0, 0, 0); // 极其重要：方便查询今天到期的单词
-			nextReview = newNextDate;
-		}
+		// Update nextReview for all cases
+		const newNextDate = new Date();
+		newNextDate.setDate(newNextDate.getDate() + interval);
+		newNextDate.setHours(0, 0, 0, 0); // 极其重要：方便查询今天到期的单词
+		nextReview = newNextDate;
 
 		VocabReviewLog.create(this, result, interval, easeFactor, nextReview);
 
@@ -263,6 +297,7 @@ export class Vocabulary implements VocabularyData {
 		this.forgetCount = forgetCount;
 		this.status = status;
 		this.nextReview = nextReview;
+		this.reviewedAt = new Date();
 
 		this.save();
 

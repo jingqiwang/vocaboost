@@ -53,4 +53,21 @@ export class StudyLog implements StudyLogData {
 
 		return new StudyLog(data);
 	}
+
+	/**
+	 * 获取最近 N 天的学习记录
+	 */
+	static async getRecentLogs(days: number): Promise<StudyLog[]> {
+		const now = new Date();
+		const startDate = new Date(now);
+		startDate.setDate(now.getDate() - days);
+		startDate.setHours(0, 0, 0, 0);
+
+		const logs = await db.studyLogs
+			.where('createdAt')
+			.aboveOrEqual(startDate)
+			.toArray();
+
+		return logs.map((log) => new StudyLog(log));
+	}
 }
