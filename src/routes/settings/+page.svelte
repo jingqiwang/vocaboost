@@ -5,21 +5,11 @@
 	import { Vocabulary } from '$lib/models/Vocabulary';
 	import { liveQuery } from 'dexie';
 
-	// 绑定设置
-	let dailyReviewCount = $state($settings.dailyReviewCount);
-	let reminderTime = $state($settings.reminderTime);
-	let autoCleanup = $state($settings.autoCleanup);
 
 	// 统计数据
 	let totalWords = $state(0);
 	let storageUsage = $state('0 KB');
 
-	// 监听 store 变化，初始化本地状态
-	settings.subscribe((v) => {
-		dailyReviewCount = v.dailyReviewCount;
-		reminderTime = v.reminderTime;
-		autoCleanup = v.autoCleanup;
-	});
 
 	onMount(async () => {
 		await updateStats();
@@ -48,20 +38,7 @@
 		}
 	}
 
-	function handleSaveSettings() {
-		settings.set({
-			dailyReviewCount,
-			reminderTime,
-			autoCleanup
-		});
-		alert('设置已保存');
-	}
 
-	async function handleResetSettings() {
-		if (!confirm('确定要恢复默认设置吗？')) return;
-		settings.reset();
-		alert('已恢复默认设置');
-	}
 
 	async function handleClearAllData() {
 		if (!confirm('警告：此操作将永久删除所有学习记录和单词数据，无法恢复！确定要继续吗？')) return;
@@ -84,7 +61,7 @@
 				vocabularies: await db.vocabularies.toArray(),
 				studyLogs: await db.studyLogs.toArray(),
 				vocabReviewLogs: await db.vocabReviewLogs.toArray(),
-				// 音频通常太大，不建议导出到 JSON，或者需要转 base64
+				audios: await serializeAudios(),
 				settings: $settings,
 				exportedAt: new Date().toISOString()
 			};
@@ -119,10 +96,11 @@
 
 				if (!confirm('导入数据将覆盖现有部分数据，确定继续吗？')) return;
 
-				await db.transaction('rw', db.vocabularies, db.studyLogs, db.vocabReviewLogs, async () => {
-					if (data.vocabularies) await db.vocabularies.bulkPut(data.vocabularies);
-					if (data.studyLogs) await db.studyLogs.bulkPut(data.studyLogs);
-					if (data.vocabReviewLogs) await db.vocabReviewLogs.bulkPut(data.vocabReviewLogs);
+				await db.transaction('rw', db.vocabularies, db.studyLogs, db.vocabReviewLogs, db.audios, async () => {
+					if (data.vocabularies) await db.vocabularies.bulkPut(hydrateDates(data.vocabularies));
+					if (data.studyLogs) await db.studyLogs.bulkPut(hydrateDates(data.studyLogs));
+					if (data.vocabReviewLogs) await db.vocabReviewLogs.bulkPut(hydrateDates(data.vocabReviewLogs));
+					if (data.audios) await db.audios.bulkPut(deserializeAudios(data.audios));
 				});
 
 				if (data.settings) {
@@ -139,112 +117,139 @@
 
 		input.click();
 	}
+
+	function hydrateDates(items: any[]) {
+		const dateFields = ['createdAt', 'nextReview', 'reviewedAt'];
+		return items.map(item => {
+			const newItem = { ...item };
+			dateFields.forEach(field => {
+				if (newItem[field]) {
+					newItem[field] = new Date(newItem[field]);
+				}
+			});
+			return newItem;
+		});
+	}
+
+	async function serializeAudios() {
+		const audios = await db.audios.toArray();
+		const serialized = [];
+		for (const item of audios) {
+			const base64 = await blobToBase64(item.blob);
+			serialized.push({
+				key: item.key,
+				base64,
+				type: item.blob.type
+			});
+		}
+		return serialized;
+	}
+
+	function deserializeAudios(items: any[]) {
+		return items.map(item => ({
+			key: item.key,
+			blob: base64ToBlob(item.base64, item.type)
+		}));
+	}
+
+	function blobToBase64(blob: Blob): Promise<string> {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onloadend = () => {
+				const res = reader.result as string;
+				// Remove the "data:audio/mpeg;base64," prefix
+				resolve(res.split(',')[1]);
+			};
+			reader.onerror = reject;
+			reader.readAsDataURL(blob);
+		});
+	}
+
+	function base64ToBlob(base64: string, type: string): Blob {
+		const bin = atob(base64);
+		const len = bin.length;
+		const arr = new Uint8Array(len);
+		for (let i = 0; i < len; i++) {
+			arr[i] = bin.charCodeAt(i);
+		}
+		return new Blob([arr], { type });
+	}
+
+	async function handlePushToLocal() {
+		try {
+			const data = {
+				vocabularies: await db.vocabularies.toArray(),
+				studyLogs: await db.studyLogs.toArray(),
+				vocabReviewLogs: await db.vocabReviewLogs.toArray(),
+				audios: await serializeAudios(),
+				settings: $settings,
+				exportedAt: new Date().toISOString()
+			};
+
+			const response = await fetch('/api/sync', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(data)
+			});
+
+			if (!response.ok) throw new Error('同步失败');
+			
+			const result = await response.json();
+			alert(`同步成功！数据已保存至：\n${result.path}`);
+		} catch (e) {
+			console.error(e);
+			alert('向本地推送数据失败');
+		}
+	}
+
+	async function handlePullFromLocal() {
+		if (!confirm('警告：从本地文件拉取数据将覆盖现有部分数据，确定继续吗？')) return;
+
+		try {
+			const response = await fetch('/api/sync');
+			if (!response.ok) throw new Error('读取同步文件失败');
+			
+			const data = await response.json();
+			if (!data) {
+				alert('未找到同步文件，请先执行“推送到本地文件”');
+				return;
+			}
+
+			await db.transaction('rw', db.vocabularies, db.studyLogs, db.vocabReviewLogs, db.audios, async () => {
+				if (data.vocabularies) await db.vocabularies.bulkPut(hydrateDates(data.vocabularies));
+				if (data.studyLogs) await db.studyLogs.bulkPut(hydrateDates(data.studyLogs));
+				if (data.vocabReviewLogs) await db.vocabReviewLogs.bulkPut(hydrateDates(data.vocabReviewLogs));
+				if (data.audios) await db.audios.bulkPut(deserializeAudios(data.audios));
+			});
+
+			if (data.settings) {
+				settings.set(data.settings);
+			}
+
+			await updateStats();
+			alert('同步拉取成功');
+		} catch (e) {
+			console.error(e);
+			alert('从本地拉取数据失败');
+		}
+	}
 </script>
 
-<div class="min-h-screen bg-white text-zinc-950">
-	<div class="mx-auto max-w-4xl space-y-8 px-4 py-6">
+<div class="min-h-screen" style="background-color: var(--color-bg-app); color: var(--color-text-primary)">
+	<div class="mx-auto max-w-4xl space-y-8 px-4 py-6 pb-32">
 		<!-- Header -->
 		<div class="space-y-3 text-center">
-			<h1 class="text-4xl font-bold tracking-tight">设置</h1>
-			<p class="text-lg text-zinc-500">个性化您的学习体验</p>
+			<h1 class="eudict-title" style="color: var(--color-primary)">设置</h1>
+			<p class="eudict-caption">个性化您的学习体验</p>
 		</div>
 
 		<div class="space-y-8">
-			<!-- Learning Settings Card -->
-			<div class="space-y-8 rounded-xl border-0 bg-white p-6 shadow-lg">
-				<div class="pb-6">
-					<h2 class="flex items-center gap-3 text-2xl font-semibold tracking-tight">
-						<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<circle cx="12" cy="12" r="10" stroke-width="2" />
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M12 6v6l4 2"
-							/>
-						</svg>
-						学习设置
-					</h2>
-				</div>
 
-				<div class="space-y-8">
-					<!-- Daily Review Count -->
-					<div class="space-y-4">
-						<label class="text-lg font-medium">每日复习单词数量</label>
-						<div class="space-y-4">
-							<input
-								type="range"
-								min="5"
-								max="50"
-								step="5"
-								bind:value={dailyReviewCount}
-								id="word-count-slider"
-								class="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-zinc-200 accent-zinc-900"
-							/>
-							<div class="flex justify-between text-zinc-500">
-								<span>5 个</span>
-								<span class="text-xl font-medium text-zinc-950" id="word-count-display"
-									>{dailyReviewCount} 个</span
-								>
-								<span>50 个</span>
-							</div>
-						</div>
-					</div>
-
-					<!-- Reminder Time -->
-					<div class="space-y-4">
-						<label for="reminder-time" class="text-lg font-medium">每日提醒时间</label>
-						<input
-							type="time"
-							id="reminder-time"
-							bind:value={reminderTime}
-							class="flex h-12 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-lg transition-colors focus-visible:ring-1 focus-visible:ring-zinc-950 focus-visible:outline-none"
-						/>
-					</div>
-
-					<!-- Auto Cleanup Toggle -->
-					<div class="flex items-center justify-between rounded-xl bg-zinc-100/50 p-6">
-						<div class="space-y-2">
-							<label class="text-lg font-medium">自动清理已掌握的单词</label>
-							<p class="text-sm text-zinc-500">
-								自动移除连续通过 <span id="cleanup-days-text">30</span> 天的单词
-							</p>
-						</div>
-						<label class="relative inline-flex cursor-pointer items-center">
-							<input
-								type="checkbox"
-								class="peer sr-only"
-								bind:checked={autoCleanup}
-								id="auto-cleanup-toggle"
-							/>
-							<div
-								class="peer h-6 w-11 rounded-full bg-zinc-200 peer-checked:bg-zinc-900 peer-focus:outline-none after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-zinc-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white"
-							></div>
-						</label>
-					</div>
-
-					<!-- Save Button -->
-					<button
-						onclick={handleSaveSettings}
-						class="flex h-14 w-full items-center justify-center gap-3 rounded-md bg-zinc-900 text-lg font-medium text-zinc-50 transition-colors hover:bg-zinc-900/90"
-					>
-						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-							/>
-						</svg>
-						保存设置
-					</button>
-				</div>
-			</div>
 
 			<!-- Data Management Card -->
-			<div class="space-y-8 rounded-xl border-0 bg-white p-6 shadow-lg">
+			<div class="eudict-card space-y-8">
 				<div class="pb-6">
-					<h2 class="flex items-center gap-3 text-2xl font-semibold tracking-tight">
+					<h2 class="eudict-subtitle flex items-center gap-3" style="color: var(--color-primary)">
 						<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path
 								stroke-linecap="round"
@@ -265,13 +270,13 @@
 
 				<!-- Stats Grid -->
 				<div class="grid grid-cols-2 gap-6 text-center">
-					<div class="space-y-2 rounded-xl border border-transparent bg-zinc-100/50 p-6">
-						<div class="text-3xl font-medium" id="total-words">{totalWords}</div>
-						<div class="text-zinc-500">单词总数</div>
+					<div class="space-y-2 rounded-xl border border-transparent p-6" style="background-color: var(--color-primary-light)">
+						<div class="text-3xl font-medium" id="total-words" style="color: var(--color-primary)">{totalWords}</div>
+						<div class="eudict-caption">单词总数</div>
 					</div>
-					<div class="space-y-2 rounded-xl border border-transparent bg-zinc-100/50 p-6">
-						<div class="text-3xl font-medium" id="storage-size">{storageUsage}</div>
-						<div class="text-zinc-500">存储占用</div>
+					<div class="space-y-2 rounded-xl border border-transparent p-6" style="background-color: var(--color-primary-light)">
+						<div class="text-3xl font-medium" id="storage-size" style="color: var(--color-primary)">{storageUsage}</div>
+						<div class="eudict-caption">存储占用</div>
 					</div>
 				</div>
 
@@ -321,14 +326,41 @@
 
 				<hr class="border-zinc-100" />
 
+				<!-- Local File Sync -->
+				<div class="space-y-4">
+					<div class="space-y-2">
+						<h3 class="text-lg font-medium">本地文件同步 (多设备)</h3>
+						<p class="text-sm text-zinc-500">
+							将数据保存在固定目录：<code class="rounded bg-zinc-100 px-1">~/vocaboost_sync/data.json</code>
+						</p>
+					</div>
+					<div class="grid grid-cols-2 gap-4">
+						<button
+							onclick={handlePushToLocal}
+							class="flex h-12 items-center justify-center gap-2 rounded-md bg-blue-600 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+						>
+							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3 3m0 0l-3-3m3 3V10" />
+							</svg>
+							推送到本地
+						</button>
+						<button
+							onclick={handlePullFromLocal}
+							class="flex h-12 items-center justify-center gap-2 rounded-md border border-blue-600 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50"
+						>
+							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+							</svg>
+							从本地拉取
+						</button>
+					</div>
+				</div>
+
+				<hr class="border-zinc-100" />
+
 				<!-- Danger Zone -->
 				<div class="space-y-4">
-					<button
-						onclick={handleResetSettings}
-						class="h-12 w-full rounded-md border border-zinc-200 bg-white text-lg font-medium text-zinc-950 transition-colors hover:bg-zinc-100"
-					>
-						重置设置
-					</button>
+
 					<button
 						onclick={handleClearAllData}
 						class="flex h-12 w-full items-center justify-center gap-3 rounded-md bg-red-600 text-lg font-medium text-white transition-colors hover:bg-red-600/90"
@@ -347,9 +379,9 @@
 			</div>
 
 			<!-- Usage Tips Card -->
-			<div class="rounded-xl border-0 bg-white p-6 shadow-lg">
+			<div class="eudict-card">
 				<div class="pb-6">
-					<h2 class="flex items-center gap-3 text-2xl font-semibold tracking-tight">
+					<h2 class="eudict-subtitle flex items-center gap-3" style="color: var(--color-primary)">
 						<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path
 								stroke-linecap="round"

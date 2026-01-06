@@ -48,7 +48,7 @@
 				</div>
 				<div class="text-md font-bold text-gray-900">
 					<p class="text-2xl text-green-600">
-						{reviewedCount} / {shouldReviewCount} <span class="text-sm font-normal">已复习</span>
+						{reviewedCount} / {reviewedCount + shouldReviewCount} <span class="text-sm font-normal">已复习</span>
 					</p>
 				</div>
 			</div>
@@ -120,7 +120,7 @@
 				</div>
 				<div class="text-2xl font-bold text-gray-900">
 					{#if studyLog}
-						{studyLog.createdAt.toLocaleTimeString(undefined, {
+						{new Date(studyLog.createdAt).toLocaleTimeString(undefined, {
 							hour: '2-digit',
 							minute: '2-digit'
 						})}

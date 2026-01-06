@@ -1,3 +1,164 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
+
+/* ============================================
+   Eudict-Inspired Design System
+   ============================================ */
+
+@layer base {
+  :root {
+    /* Primary Colors - iOS Style Blue */
+    --color-primary: #007AFF;
+    --color-primary-hover: #0051D5;
+    --color-primary-light: #E5F2FF;
+    
+    /* Backgrounds */
+    --color-bg-app: #F5F5F7;
+    --color-bg-card: #FFFFFF;
+    
+    /* Text Colors */
+    --color-text-primary: #1D1D1F;
+    --color-text-secondary: #8E8E93;
+    --color-text-tertiary: #C7C7CC;
+    
+    /* Borders & Dividers */
+    --color-border: #E5E5EA;
+    --color-border-light: #F2F2F7;
+    
+    /* Semantic Colors */
+    --color-success: #4CD964;
+    --color-success-light: #E8F8EA;
+    --color-warning: #FF9500;
+    --color-warning-light: #FFF4E5;
+    --color-error: #FF3B30;
+    --color-error-light: #FFE5E5;
+    
+    /* Spacing */
+    --spacing-xs: 0.25rem;   /* 4px */
+    --spacing-sm: 0.5rem;    /* 8px */
+    --spacing-md: 1rem;      /* 16px */
+    --spacing-lg: 1.5rem;    /* 24px */
+    --spacing-xl: 2rem;      /* 32px */
+    
+    /* Border Radius */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
+    
+    /* Shadows */
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04);
+    --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-button: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Global Styles */
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background-color: var(--color-bg-app);
+    color: var(--color-text-primary);
+    line-height: 1.6;
+  }
+}
+
+@layer components {
+  /* Card Component */
+  .eudict-card {
+    background-color: var(--color-bg-card);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--spacing-lg);
+  }
+  
+  .eudict-card:hover {
+    box-shadow: var(--shadow-card-hover);
+  }
+  
+  /* Primary Button */
+  .eudict-btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1.5rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border: none;
+    box-shadow: var(--shadow-button);
+  }
+  
+  .eudict-btn-primary:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
+    box-shadow: 0 2px 6px rgba(0, 122, 255, 0.3);
+  }
+  
+  .eudict-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  /* Secondary Button */
+  .eudict-btn-secondary {
+    background-color: white;
+    color: var(--color-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1.5rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  
+  .eudict-btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-primary-light);
+    border-color: var(--color-primary);
+  }
+  
+  /* Input Fields */
+  .eudict-input {
+    background-color: white;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    width: 100%;
+  }
+  
+  .eudict-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+  }
+  
+  /* Typography Utilities */
+  .eudict-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    line-height: 1.3;
+  }
+  
+  .eudict-subtitle {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+  
+  .eudict-body {
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--color-text-primary);
+  }
+  
+  .eudict-caption {
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--color-text-secondary);
+  }
+  
+  /* Press Effect for Interactive Elements */
+  .button-press:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+}

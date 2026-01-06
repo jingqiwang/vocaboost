@@ -3,6 +3,7 @@
 	import { AudioService } from '$lib/services/AudioService';
 	import { Vocabulary } from '$lib/models/Vocabulary';
 	import Alert from '$lib/components/Alert.svelte';
+	import ConfirmationModal from '$lib/components/ConfirmationModal.svelte';
 	import VocabInput from './VocabInput.svelte';
 	import MeaningInput from './MeaningInput.svelte';
 
@@ -22,16 +23,19 @@
 	let searchError = $state('');
 	let errors = $state<{ word?: string; description?: string }>({});
 	let exceptionMessage = $state('');
-	let isLoading = $state(false); // 添加 loading 状态
+	let isLoading = $state(false);
+	let loadingStatus = $state('');
+
+	// Modal state
+	let showConfirmModal = $state(false);
+	let pendingWord = $state<{ word: string; description: string; existingDescription: string } | null>(null);
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
-
-		// 如果正在加载，防止重复提交
 		if (isLoading) return;
 
 		errors = {};
-		exceptionMessage = ''; // 清空之前的错误信息
+		exceptionMessage = '';
 
 		const result = vocabSchema.safeParse({
 			word: word,
@@ -47,49 +51,80 @@
 		}
 
 		try {
-			isLoading = true; // 开始加载
+			isLoading = true;
+			loadingStatus = '正在检查词汇...';
 
-			// 检查单词是否已存在
 			const existing = await Vocabulary.findByWord(word);
 			if (existing) {
-				// 弹出确认框
-				const confirmReset = confirm(
-					`单词 "${word}" 已存在（释义：${existing.description}）。\n是否要覆盖释义并重新开始学习？`
-				);
-
-				if (confirmReset) {
-					// 执行重置逻辑
-					await existing.resetReview(description); // 传入新释义
-
-					// 成功反馈
-					word = '';
-					description = '';
-					alert('已重置该单词的学习进度');
-				}
-				// 如果用户点取消，则停留在当前页面，不执行任何操作
+				pendingWord = { 
+					word, 
+					description, 
+					existingDescription: existing.description 
+				};
+				showConfirmModal = true;
+				isLoading = false;
+				loadingStatus = '';
 				return;
 			}
 
-			Vocabulary.create({ word: word, description: description });
-			await AudioService.fetchAndSaveAudio(word);
+			await saveNewVocab(word, description);
+		} catch (err) {
+			exceptionMessage = err instanceof Error ? err.message : '保存失败,请重试';
+			isLoading = false;
+			loadingStatus = '';
+		}
+	}
 
-			// 成功后重置表单
+	async function saveNewVocab(w: string, desc: string) {
+		try {
+			isLoading = true;
+			loadingStatus = '正在保存到数据库...';
+			
+			const existing = await Vocabulary.findByWord(w);
+			if (existing) {
+				await existing.resetReview(desc);
+			} else {
+				await Vocabulary.create({ word: w, description: desc });
+			}
+
+			loadingStatus = '正在获取音频...';
+			await AudioService.fetchAndSaveAudio(w);
+
+			// Reset form
 			word = '';
 			description = '';
+			enResults = [];
 			errors = {};
 		} catch (err) {
 			exceptionMessage = err instanceof Error ? err.message : '保存失败,请重试';
 		} finally {
-			isLoading = false; // 无论成功失败都要结束加载
+			isLoading = false;
+			loadingStatus = '';
+			pendingWord = null;
+		}
+	}
+
+	function handleConfirmOverwrite() {
+		if (pendingWord) {
+			saveNewVocab(pendingWord.word, pendingWord.description);
 		}
 	}
 </script>
+
+<ConfirmationModal
+	bind:show={showConfirmModal}
+	title="单词已存在"
+	message={`单词 "${pendingWord?.word}" 已存在（释义：${pendingWord?.existingDescription}）。\n是否要覆盖释义并重新开始学习？`}
+	confirmText="覆盖并重置"
+	cancelText="取消"
+	onConfirm={handleConfirmOverwrite}
+/>
 
 {#if exceptionMessage}
 	<Alert type="error" message={exceptionMessage} />
 {/if}
 
-<div class="mb-6 rounded-xl bg-white p-6 shadow-sm sm:p-8">
+<div class="eudict-card mb-6 sm:p-8">
 	<div>
 		<form onsubmit={handleSubmit}>
 			<VocabInput
@@ -117,17 +152,18 @@
 			{#if searchError}
 				<Alert type="error" message={searchError} />
 			{:else if enResults.length > 0}
-				<div class="mt-2 rounded-lg border border-gray-200 bg-white p-3">
-					<div class="mb-2 text-xs font-semibold text-gray-500">英英释义</div>
+				<div class="mt-2 rounded-lg border bg-white p-3" style="border-color: var(--color-border)">
+					<div class="eudict-caption mb-2 font-semibold">英英释义</div>
 					<div class="space-y-2">
 						{#each enResults as item}
-							<div class="flex items-start justify-between gap-2 rounded-md border border-gray-100 bg-gray-50/50 p-2">
+							<div class="flex items-start justify-between gap-2 rounded-md border p-2" style="border-color: var(--color-border-light); background-color: var(--color-bg-app)">
 								<div class="flex-1">
-									<div class="text-[10px] uppercase tracking-widest text-gray-400">{item.pos}</div>
-									<div class="text-sm text-gray-800">{item.def}</div>
+									<div class="text-[10px] uppercase tracking-widest" style="color: var(--color-text-tertiary)">{item.pos}</div>
+									<div class="text-sm" style="color: var(--color-text-primary)">{item.def}</div>
 								</div>
 								<button
-									class="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100"
+									class="rounded px-2 py-1 text-xs font-medium transition-colors"
+									style="background-color: var(--color-primary-light); color: var(--color-primary)"
 									onclick={() => (description = item.def)}
 									title="填充到释义"
 								>
@@ -142,7 +178,7 @@
 			<button
 				type="submit"
 				disabled={isLoading}
-				class="button-press mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-gray-900 py-4 font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+				class="eudict-btn-primary button-press mt-6 flex w-full cursor-pointer items-center justify-center gap-2 py-4"
 			>
 				{#if isLoading}
 					<!-- Loading Spinner -->
@@ -160,7 +196,7 @@
 							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 						></path>
 					</svg>
-					<span>正在添加...</span>
+					<span>{loadingStatus}</span>
 				{:else}
 					<span class="text-lg">+</span>
 					<span>添加到学习库</span>

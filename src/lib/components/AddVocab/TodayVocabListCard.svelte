@@ -3,20 +3,42 @@
 	import { Vocabulary } from '$lib/models/Vocabulary';
 	import Alert from '$lib/components/Alert.svelte';
 	import AudioBtn from '$lib/components/AddVocab/AudioBtn.svelte';
+	import ConfirmationModal from '$lib/components/ConfirmationModal.svelte';
 
 	let vocabs = liveQuery(() => Vocabulary.getTodayNewVocabularies());
 	let errorMessage = $state('');
 
-	async function handleDelete(vocab: Vocabulary) {
-		if (confirm('确定要删除这个单词吗？')) {
+	// Modal State
+	let showDeleteModal = $state(false);
+	let pendingDeleteVocab = $state<Vocabulary | null>(null);
+
+	function requestDelete(vocab: Vocabulary) {
+		pendingDeleteVocab = vocab;
+		showDeleteModal = true;
+	}
+
+	async function handleDelete() {
+		if (pendingDeleteVocab) {
 			try {
-				await vocab.delete();
+				await pendingDeleteVocab.delete();
 			} catch (err) {
 				errorMessage = err instanceof Error ? err.message : '删除失败，请重试';
+			} finally {
+				pendingDeleteVocab = null;
 			}
 		}
 	}
 </script>
+
+<ConfirmationModal
+	bind:show={showDeleteModal}
+	type="error"
+	title="确认删除"
+	message={`确定要删除单词 "${pendingDeleteVocab?.word}" 吗？此操作无法撤销。`}
+	confirmText="确定删除"
+	cancelText="取消"
+	onConfirm={handleDelete}
+/>
 
 {#if errorMessage}
 	<Alert type="error" message={errorMessage} />
@@ -71,13 +93,13 @@
 
 						<div class="flex items-start justify-between">
 							<p class="text-xs text-green-600/70">
-								{vocab.createdAt.toLocaleTimeString(undefined, {
+								{new Date(vocab.createdAt).toLocaleTimeString(undefined, {
 									hour: '2-digit',
 									minute: '2-digit'
 								})} 添加
 							</p>
 
-							<button class="text-red-500 cursor-pointer hover:text-red-300" title="删除单词" onclick={() => handleDelete(vocab)}>
+							<button class="text-red-500 cursor-pointer hover:text-red-300" title="删除单词" onclick={() => requestDelete(vocab)}>
 								<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path
 										stroke-linecap="round"

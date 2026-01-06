@@ -27,6 +27,7 @@
 
 	// ============ 状态管理 ============
 	let currentStep = $state<ReviewStep>('dashboard');
+	let isTransitioning = $state(false); // 添加过渡状态
 
 	let newWordsSession = $state<ReviewSession>({
 		words: [],
@@ -137,23 +138,30 @@
 	}
 
 	async function handleNewWordLearned(): Promise<void> {
-		const currentWord = newWordsSession.words[newWordsSession.currentIndex];
-		currentWord.status = 'learning';
-		await currentWord.save();
+		if (isTransitioning) return;
+		isTransitioning = true;
+		
+		try {
+			const currentWord = newWordsSession.words[newWordsSession.currentIndex];
+			currentWord.status = 'learning';
+			await currentWord.save();
 
-		recordNewWordResult(currentWord);
+			recordNewWordResult(currentWord);
 
-		if (!isLastNewWord) {
-			moveToNextNewWord();
-			currentStep = 'studying-new';
-		} else {
-			// 新单词学习完成，开始复习
-			if ($reviewVocabularies?.length) {
-				initializeReviewSession($reviewVocabularies);
-				currentStep = 'reviewing';
+			if (!isLastNewWord) {
+				moveToNextNewWord();
+				// Stay in 'studying-new'
 			} else {
-				currentStep = 'finished';
+				// 新单词学习完成，开始复习
+				if ($reviewVocabularies?.length) {
+					initializeReviewSession($reviewVocabularies);
+					currentStep = 'reviewing';
+				} else {
+					currentStep = 'finished';
+				}
 			}
+		} finally {
+			isTransitioning = false;
 		}
 	}
 
@@ -162,20 +170,38 @@
 	}
 
 	async function handleAnswerResult(result: ReviewResult): Promise<void> {
-		const currentWord = reviewSession.words[reviewSession.currentIndex];
-		currentWord.updateNextReview(result);
-		recordReviewResult(currentWord, result);
+		if (isTransitioning) return;
+		isTransitioning = true;
 
-		if (!isLastReviewWord) {
-			moveToNextReviewWord();
-			currentStep = 'reviewing';
-		} else {
-			currentStep = 'finished';
+		try {
+			const currentWord = reviewSession.words[reviewSession.currentIndex];
+			currentWord.updateNextReview(result);
+			await currentWord.save(); // Ensure it's saved
+
+			recordReviewResult(currentWord, result);
+
+			// 如果不是“正确”，则把单词加到队尾重新测试
+			if (result !== 'know') {
+				reviewSession.words.push(currentWord);
+			}
+
+			if (reviewSession.currentIndex < reviewSession.words.length - 1) {
+				moveToNextReviewWord();
+				currentStep = 'reviewing';
+			} else {
+				currentStep = 'finished';
+			}
+		} finally {
+			isTransitioning = false;
 		}
 	}
+
+function handleBackToDashboard(): void {
+	currentStep = 'dashboard';
+}
 </script>
 
-<div class="flex mt-4 items-center justify-center bg-gray-100 p-4">
+<div class="flex mt-4 items-center justify-center bg-gray-100 p-4 pb-28">
 	{#if currentStep === 'dashboard'}
 		<DashboardCard
 			studyLog={$studyLog ?? null}
@@ -192,7 +218,7 @@
 			onNewWordLearned={handleNewWordLearned}
 		/>
 	{:else if currentStep === 'reviewing'}
-		<TestCard {currentVocab} {progressStr} {progressPercent} onShowAnswer={handleShowAnswer} />
+		<TestCard {currentVocab} {progressStr} {progressPercent} onShowAnswer={handleShowAnswer} onBack={handleBackToDashboard} />
 	{:else if currentStep === 'answering'}
 		<AnswerCard
 			{currentVocab}

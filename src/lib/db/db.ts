@@ -8,8 +8,8 @@ const db = new Dexie('vocaboost') as Dexie & {
 	studyLogs: EntityTable<StudyLogData, 'id'>;
 };
 
-db.version(1).stores({
-	vocabularies: '++id, status, word, createdAt, nextReview, reviewedAt',
+db.version(2).stores({
+	vocabularies: '++id, status, word, createdAt, nextReview, reviewedAt, knowCount, forgetCount',
 	audios: 'key',
 	vocabReviewLogs: '++id, word, reviewStatus, createdAt',
 	studyLogs: '++id, createdAt'

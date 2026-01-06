@@ -21,22 +21,21 @@
 	}
 </script>
 
-<nav class="fixed right-0 bottom-0 left-0 z-50 border-t border-gray-200 bg-white">
+<nav class="fixed right-0 bottom-0 left-0 z-50 border-t bg-white" style="border-color: var(--color-border)">
 	<div class="mx-auto max-w-4xl px-2">
 		<div class="flex h-20 items-center justify-around">
 			{#each navItems as item}
 				<button
-					on:click={() => handleNavClick(item.path)}
+					onclick={() => handleNavClick(item.path)}
 					class="button-press flex flex-1 flex-col items-center justify-center gap-1 py-2 transition-all"
-					class:text-gray-400={currentPage !== item.id}
-					class:hover:text-gray-600={currentPage !== item.id}
+					style="color: {currentPage === item.id ? 'var(--color-primary)' : 'var(--color-text-tertiary)'}"
 				>
 					<div
-						class="flex h-10 w-10 items-center justify-center rounded-xl"
-						class:bg-gray-100={currentPage === item.id}
+						class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
+						style="background-color: {currentPage === item.id ? 'var(--color-primary-light)' : 'transparent'}"
 					>
 						{#if item.icon === 'plus'}
-							<span class="text-xl" class:text-gray-700={currentPage === item.id}>+</span>
+							<span class="text-xl font-semibold">+</span>
 						{:else if item.icon === 'book'}
 							<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path
@@ -72,7 +71,7 @@
 							</svg>
 						{/if}
 					</div>
-					<span class="text-xs font-medium" class:text-gray-600={currentPage === item.id}>
+					<span class="text-xs font-medium">
 						{item.label}
 					</span>
 				</button>
@@ -80,3 +79,4 @@
 		</div>
 	</div>
 </nav>
+

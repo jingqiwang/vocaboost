@@ -1,6 +1,6 @@
 <script lang="ts">
 	import AudioBtn from './AudioBtn.svelte';
-	let { currentVocab, progressStr, progressPercent, onShowAnswer } = $props();
+	let { currentVocab, progressStr, progressPercent, onShowAnswer, onBack = () => {} } = $props();
 </script>
 
 <div class="mx-auto w-full max-w-md">
@@ -10,6 +10,7 @@
 			<!-- svelte-ignore a11y_consider_explicit_label -->
 			<button
 				class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100"
+				onclick={onBack}
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"

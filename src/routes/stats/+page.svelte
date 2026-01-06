@@ -172,8 +172,8 @@
 				datasets: [{
 					label: '每日复习次数',
 					data: values,
-					backgroundColor: 'rgba(59, 130, 246, 0.5)',
-					borderColor: 'rgb(59, 130, 246)',
+					backgroundColor: 'rgba(0, 122, 255, 0.5)',
+					borderColor: 'rgb(0, 122, 255)',
 					borderWidth: 1,
 					borderRadius: 4,
 					barPercentage: 0.6
@@ -262,22 +262,24 @@
 	}
 </script>
 
-<div class="mb-12 bg-gray-50 text-zinc-900 antialiased">
-	<div class="mx-auto max-w-5xl space-y-8 px-4 py-10">
+<div class="mb-12" style="background-color: var(--color-bg-app); color: var(--color-text-primary); antialiased">
+	<div class="mx-auto max-w-5xl space-y-8 px-4 py-10 pb-32">
 		<!-- Header -->
 		<div class="space-y-3 text-center">
-			<h1 class="text-4xl font-bold tracking-tight">学习统计</h1>
-			<p class="text-lg text-zinc-500">您的学习进度与成长轨迹</p>
+			<h1 class="eudict-title" style="color: var(--color-primary)">学习统计</h1>
+			<p class="eudict-caption">您的学习进度与成长轨迹</p>
 		</div>
 
 		<!-- Stats Cards -->
 		<div class="grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-4">
 			<!-- Total Words -->
 			<div
-				class="rounded-2xl border border-white/20 bg-gradient-to-br from-blue-50 to-white p-6 text-center shadow-lg"
+				class="eudict-card rounded-2xl border border-white/20 p-6 text-center"
+				style="background: linear-gradient(135deg, var(--color-primary-light) 0%, white 100%)"
 			>
 				<div
-					class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600"
+					class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full"
+					style="background-color: var(--color-primary-light); color: var(--color-primary)"
 				>
 					<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path
@@ -288,16 +290,18 @@
 						/>
 					</svg>
 				</div>
-				<div class="text-3xl font-bold">{vocabCount}</div>
-				<div class="mt-1 text-sm font-medium text-zinc-500">总单词数</div>
+				<div class="text-3xl font-bold" style="color: var(--color-primary)">{vocabCount}</div>
+				<div class="eudict-caption mt-1 font-medium">总单词数</div>
 			</div>
 
 			<!-- Total Reviews -->
 			<div
-				class="rounded-2xl border border-white/20 bg-gradient-to-br from-green-50 to-white p-6 text-center shadow-lg"
+				class="eudict-card rounded-2xl border border-white/20 p-6 text-center"
+				style="background: linear-gradient(135deg, var(--color-success-light) 0%, white 100%)"
 			>
 				<div
-					class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600"
+					class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full"
+					style="background-color: var(--color-success-light); color: var(--color-success)"
 				>
 					<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path
@@ -308,8 +312,8 @@
 						/>
 					</svg>
 				</div>
-				<div class="text-3xl font-bold">{studyTimes}</div>
-				<div class="mt-1 text-sm font-medium text-zinc-500">复习次数</div>
+				<div class="text-3xl font-bold" style="color: var(--color-success)">{studyTimes}</div>
+				<div class="eudict-caption mt-1 font-medium">复习次数</div>
 			</div>
 
 			<!-- Success Rate -->
@@ -354,8 +358,8 @@
 		</div>
 
 		<!-- Learning Trend Chart -->
-		<div class="rounded-2xl border border-white/20 bg-white p-6 shadow-lg">
-			<h2 class="mb-6 text-xl font-bold text-gray-800">最近7天学习趋势</h2>
+		<div class="eudict-card">
+			<h2 class="eudict-subtitle mb-6" style="color: var(--color-primary)">最近7天学习趋势</h2>
 			<div class="relative h-64 w-full">
 				<canvas bind:this={chartCanvas}></canvas>
 			</div>
@@ -584,13 +588,13 @@
 														<span>{statusInfo.text}</span>
 													</div>
 													<span class="font-mono text-slate-400">
-														{log.createdAt.toLocaleDateString(undefined, {
+														{new Date(log.createdAt).toLocaleDateString(undefined, {
 															year: 'numeric',
 															month: '2-digit',
 															day: '2-digit'
 														})} 
 														<span class="ml-2 opacity-60">
-															{log.createdAt.toLocaleTimeString(undefined, {
+															{new Date(log.createdAt).toLocaleTimeString(undefined, {
 																hour: '2-digit',
 																minute: '2-digit'
 															})}
