@@ -181,7 +181,7 @@
 
 	async function handlePushToLocal() {
 		try {
-            // 1. Get Local Data
+            // 1. Get Local Data (including audios)
             const localData = {
 				vocabularies: await db.vocabularies.toArray(),
 				studyLogs: await db.studyLogs.toArray(),
@@ -208,14 +208,14 @@
             if (remoteData.studyLogs) remoteData.studyLogs = hydrateDates(remoteData.studyLogs);
             if (remoteData.vocabReviewLogs) remoteData.vocabReviewLogs = hydrateDates(remoteData.vocabReviewLogs);
 
-            // 4. Merge
+            // 4. Merge (including audios)
             const mergedVocabularies = mergeVocabularies(localData.vocabularies, remoteData.vocabularies || []);
             const mergedStudyLogs = mergeLogs(localData.studyLogs, remoteData.studyLogs || [], studyLogKey);
             const mergedReviewLogs = mergeLogs(localData.vocabReviewLogs, remoteData.vocabReviewLogs || [], reviewLogKey);
             const mergedAudios = mergeAudios(localData.audios, remoteData.audios || []);
             const mergedSettings = mergeSettings(localData.settings, remoteData.settings || {});
 
-            // 5. Construct Payload
+            // 5. Construct Payload (including audios)
 			const payload = {
 				vocabularies: mergedVocabularies,
 				studyLogs: mergedStudyLogs,
@@ -268,7 +268,7 @@
 				return;
 			}
 
-            // 2. Get Local Data
+            // 2. Get Local Data (including audios)
             const localData = {
 				vocabularies: await db.vocabularies.toArray(),
 				studyLogs: await db.studyLogs.toArray(),
@@ -282,7 +282,7 @@
             if (remoteData.studyLogs) remoteData.studyLogs = hydrateDates(remoteData.studyLogs);
             if (remoteData.vocabReviewLogs) remoteData.vocabReviewLogs = hydrateDates(remoteData.vocabReviewLogs);
 
-            // 4. Merge
+            // 4. Merge (including audios)
             const mergedVocabularies = mergeVocabularies(localData.vocabularies, remoteData.vocabularies || []);
             const mergedStudyLogs = mergeLogs(localData.studyLogs, remoteData.studyLogs || [], studyLogKey);
             const mergedReviewLogs = mergeLogs(localData.vocabReviewLogs, remoteData.vocabReviewLogs || [], reviewLogKey);
