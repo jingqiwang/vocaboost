@@ -17,11 +17,15 @@ export interface VocabularyData {
 
 	createdAt: Date; // 创建时间
 	updatedAt: Date; // 最后更新时间
+
+	// 同步状态
+	isSynced?: boolean; // 是否已同步，默认 false
 }
 
 export interface VocabAudioData {
 	key: string; // 主键：`${vocabulary}_${type}`
 	blob: Blob; // 音频数据
+	isSynced?: boolean; // 是否已同步，默认 false
 }
 
 export interface VocabReviewLogData {

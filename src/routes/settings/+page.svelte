@@ -10,9 +10,22 @@
 	let totalWords = $state(0);
 	let storageUsage = $state('0 KB');
 
+	// 同步状态
+	let isSyncing = $state(false);
+	let syncProgress = $state(0);
+	let syncStatus = $state('');
+	let unsyncedCount = $state(0);
+
+	async function updateUnsyncedCount() {
+		const unsyncedVocabs = await db.vocabularies.where('isSynced').equals(0).count();
+		const unsyncedAudios = await db.audios.where('isSynced').equals(0).count();
+		unsyncedCount = unsyncedVocabs + unsyncedAudios;
+	}
+
 
 	onMount(async () => {
 		await updateStats();
+		await updateUnsyncedCount();
 	});
 
 	async function updateStats() {
@@ -180,133 +193,236 @@
     // ... existing stats code ...
 
 	async function handlePushToLocal() {
+		if (isSyncing) return;
+		isSyncing = true;
+		syncProgress = 0;
+		syncStatus = '准备同步...';
+
 		try {
-            // 1. Get Local Data (including audios)
-            const localData = {
-				vocabularies: await db.vocabularies.toArray(),
-				studyLogs: await db.studyLogs.toArray(),
-				vocabReviewLogs: await db.vocabReviewLogs.toArray(),
-				audios: await serializeAudios(),
+			// 1. Get unsynced data (incremental sync)
+			syncStatus = '获取未同步数据...';
+			syncProgress = 10;
+
+			const unsyncedVocabs = await db.vocabularies.where('isSynced').equals(0).toArray();
+			const unsyncedAudios = await db.audios.where('isSynced').equals(0).toArray();
+			const allVocabs = await db.vocabularies.toArray();
+			const allStudyLogs = await db.studyLogs.toArray();
+			const allReviewLogs = await db.vocabReviewLogs.toArray();
+
+			syncProgress = 20;
+			syncStatus = `序列化音频 (${unsyncedAudios.length} 个未同步)...`;
+
+			// Serialize all audios (need full set for merge)
+			const serializedAudios = await serializeAudios();
+
+			const localData = {
+				vocabularies: allVocabs,
+				studyLogs: allStudyLogs,
+				vocabReviewLogs: allReviewLogs,
+				audios: serializedAudios,
 				settings: $settings
-            };
+			};
 
-            // 2. Get Remote Data (if exists) to merge
-            let remoteData: any = {};
+			syncProgress = 30;
+			syncStatus = '获取远程数据...';
+
+			// 2. Get Remote Data (if exists) to merge
+			let remoteData: any = {};
 			try {
-                const res = await fetch('/api/sync');
-                if (res.ok) {
-                    const json = await res.json();
-                    if (json) remoteData = json;
-                }
-            } catch (e) {
-                // Ignore remote read error, treat as empty
-                console.warn('Could not read remote data for merge, assuming empty.', e);
-            }
+				const res = await fetch('/api/sync');
+				if (res.ok) {
+					const json = await res.json();
+					if (json) remoteData = json;
+				}
+			} catch (e) {
+				console.warn('Could not read remote data for merge, assuming empty.', e);
+			}
 
-            // 3. Hydrate Dates for Remote Data (if any)
-            if (remoteData.vocabularies) remoteData.vocabularies = hydrateDates(remoteData.vocabularies);
-            if (remoteData.studyLogs) remoteData.studyLogs = hydrateDates(remoteData.studyLogs);
-            if (remoteData.vocabReviewLogs) remoteData.vocabReviewLogs = hydrateDates(remoteData.vocabReviewLogs);
+			syncProgress = 40;
+			syncStatus = '合并数据...';
 
-            // 4. Merge (including audios)
-            const mergedVocabularies = mergeVocabularies(localData.vocabularies, remoteData.vocabularies || []);
-            const mergedStudyLogs = mergeLogs(localData.studyLogs, remoteData.studyLogs || [], studyLogKey);
-            const mergedReviewLogs = mergeLogs(localData.vocabReviewLogs, remoteData.vocabReviewLogs || [], reviewLogKey);
-            const mergedAudios = mergeAudios(localData.audios, remoteData.audios || []);
-            const mergedSettings = mergeSettings(localData.settings, remoteData.settings || {});
+			// 3. Hydrate Dates for Remote Data (if any)
+			if (remoteData.vocabularies) remoteData.vocabularies = hydrateDates(remoteData.vocabularies);
+			if (remoteData.studyLogs) remoteData.studyLogs = hydrateDates(remoteData.studyLogs);
+			if (remoteData.vocabReviewLogs) remoteData.vocabReviewLogs = hydrateDates(remoteData.vocabReviewLogs);
 
-            // 5. Construct Payload (including audios)
+			// 4. Merge (including audios)
+			const mergedVocabularies = mergeVocabularies(localData.vocabularies, remoteData.vocabularies || []);
+			const mergedStudyLogs = mergeLogs(localData.studyLogs, remoteData.studyLogs || [], studyLogKey);
+			const mergedReviewLogs = mergeLogs(localData.vocabReviewLogs, remoteData.vocabReviewLogs || [], reviewLogKey);
+			const mergedAudios = mergeAudios(localData.audios, remoteData.audios || []);
+			const mergedSettings = mergeSettings(localData.settings, remoteData.settings || {});
+
+			syncProgress = 50;
+			syncStatus = '构建同步数据包...';
+
+			// 5. Construct Payload (mark all as synced)
+			const vocabsWithSyncFlag = mergedVocabularies.map(v => ({ ...v, isSynced: true }));
+			const audiosWithSyncFlag = mergedAudios.map((a: any) => ({ ...a, isSynced: true }));
+
 			const payload = {
-				vocabularies: mergedVocabularies,
+				vocabularies: vocabsWithSyncFlag,
 				studyLogs: mergedStudyLogs,
 				vocabReviewLogs: mergedReviewLogs,
-				audios: mergedAudios,
+				audios: audiosWithSyncFlag,
 				settings: mergedSettings,
 				exportedAt: new Date().toISOString()
 			};
 
-            // 6. Push Merged Data to Remote
+			syncProgress = 60;
+			syncStatus = '上传数据...';
+
+			// 6. Push Merged Data to Remote
 			const response = await fetch('/api/sync', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(payload)
 			});
 
-			if (!response.ok) throw new Error('同步失败');
-			
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.message || '同步失败');
+			}
+
 			const result = await response.json();
 
-            // 7. Update Local DB with Merged Data (to stay in sync)
-            await db.transaction('rw', db.vocabularies, db.studyLogs, db.vocabReviewLogs, db.audios, async () => {
-                await db.vocabularies.bulkPut(mergedVocabularies);
-                await db.studyLogs.bulkPut(mergedStudyLogs);
-                await db.vocabReviewLogs.bulkPut(mergedReviewLogs);
-                await db.audios.bulkPut(deserializeAudios(mergedAudios));
-            });
-            
-            if (mergedSettings) settings.set(mergedSettings);
-            await updateStats();
+			syncProgress = 80;
+			syncStatus = '更新本地数据库...';
 
-			alert(`同步成功 (已合并)！数据已保存至：\n${result.path}`);
-		} catch (e) {
+			// 7. Update Local DB with Merged Data and mark as synced
+			await db.transaction('rw', db.vocabularies, db.studyLogs, db.vocabReviewLogs, db.audios, async () => {
+				await db.vocabularies.bulkPut(vocabsWithSyncFlag);
+				await db.studyLogs.bulkPut(mergedStudyLogs);
+				await db.vocabReviewLogs.bulkPut(mergedReviewLogs);
+				// Deserialize audios and add isSynced flag
+				const deserializedAudios = deserializeAudios(audiosWithSyncFlag).map((a: any) => ({ ...a, isSynced: true }));
+				await db.audios.bulkPut(deserializedAudios);
+			});
+
+			if (mergedSettings) settings.set(mergedSettings);
+			await updateStats();
+			await updateUnsyncedCount();
+
+			syncProgress = 100;
+			syncStatus = '同步完成！';
+
+			setTimeout(() => {
+				isSyncing = false;
+				alert(`同步成功！\n- 单词: ${mergedVocabularies.length} 条\n- 音频: ${mergedAudios.length} 条\n数据已保存至: ${result.path}`);
+			}, 500);
+		} catch (e: any) {
 			console.error(e);
-			alert('向本地推送数据失败');
+			isSyncing = false;
+			alert(`向本地推送数据失败: ${e.message || '未知错误'}`);
 		}
 	}
 
 	async function handlePullFromLocal() {
 		if (!confirm('确定要从本地文件拉取数据并合并吗？')) return;
+		if (isSyncing) return;
+
+		isSyncing = true;
+		syncProgress = 0;
+		syncStatus = '准备拉取...';
 
 		try {
-            // 1. Fetch Remote
+			// 1. Fetch Remote
+			syncStatus = '读取远程数据...';
+			syncProgress = 10;
+
 			const response = await fetch('/api/sync');
 			if (!response.ok) throw new Error('读取同步文件失败');
-			
+
 			const remoteData = await response.json();
 			if (!remoteData) {
-				alert('未找到同步文件，请先执行“推送到本地文件”');
+				isSyncing = false;
+				alert('未找到同步文件，请先执行"推送到本地文件"');
 				return;
 			}
 
-            // 2. Get Local Data (including audios)
-            const localData = {
+			syncProgress = 30;
+			syncStatus = '获取本地数据...';
+
+			// 2. Get Local Data (including audios)
+			const localData = {
 				vocabularies: await db.vocabularies.toArray(),
 				studyLogs: await db.studyLogs.toArray(),
 				vocabReviewLogs: await db.vocabReviewLogs.toArray(),
 				audios: await serializeAudios(),
 				settings: $settings
-            };
+			};
 
-            // 3. Hydrate Remote Dates
-            if (remoteData.vocabularies) remoteData.vocabularies = hydrateDates(remoteData.vocabularies);
-            if (remoteData.studyLogs) remoteData.studyLogs = hydrateDates(remoteData.studyLogs);
-            if (remoteData.vocabReviewLogs) remoteData.vocabReviewLogs = hydrateDates(remoteData.vocabReviewLogs);
+			syncProgress = 50;
+			syncStatus = '合并数据...';
 
-            // 4. Merge (including audios)
-            const mergedVocabularies = mergeVocabularies(localData.vocabularies, remoteData.vocabularies || []);
-            const mergedStudyLogs = mergeLogs(localData.studyLogs, remoteData.studyLogs || [], studyLogKey);
-            const mergedReviewLogs = mergeLogs(localData.vocabReviewLogs, remoteData.vocabReviewLogs || [], reviewLogKey);
-            const mergedAudios = mergeAudios(localData.audios, remoteData.audios || []);
-            const mergedSettings = mergeSettings(localData.settings, remoteData.settings || {});
+			// 3. Hydrate Remote Dates
+			if (remoteData.vocabularies) remoteData.vocabularies = hydrateDates(remoteData.vocabularies);
+			if (remoteData.studyLogs) remoteData.studyLogs = hydrateDates(remoteData.studyLogs);
+			if (remoteData.vocabReviewLogs) remoteData.vocabReviewLogs = hydrateDates(remoteData.vocabReviewLogs);
 
-            // 5. Update Local DB Only
+			// 4. Merge (including audios)
+			const mergedVocabularies = mergeVocabularies(localData.vocabularies, remoteData.vocabularies || []);
+			const mergedStudyLogs = mergeLogs(localData.studyLogs, remoteData.studyLogs || [], studyLogKey);
+			const mergedReviewLogs = mergeLogs(localData.vocabReviewLogs, remoteData.vocabReviewLogs || [], reviewLogKey);
+			const mergedAudios = mergeAudios(localData.audios, remoteData.audios || []);
+			const mergedSettings = mergeSettings(localData.settings, remoteData.settings || {});
+
+			// Mark all as synced
+			const vocabsWithSyncFlag = mergedVocabularies.map(v => ({ ...v, isSynced: true }));
+
+			syncProgress = 70;
+			syncStatus = '更新本地数据库...';
+
+			// 5. Update Local DB Only
 			await db.transaction('rw', db.vocabularies, db.studyLogs, db.vocabReviewLogs, db.audios, async () => {
-				await db.vocabularies.bulkPut(mergedVocabularies);
+				await db.vocabularies.bulkPut(vocabsWithSyncFlag);
 				await db.studyLogs.bulkPut(mergedStudyLogs);
 				await db.vocabReviewLogs.bulkPut(mergedReviewLogs);
-				await db.audios.bulkPut(deserializeAudios(mergedAudios));
+				const deserializedAudios = deserializeAudios(mergedAudios).map((a: any) => ({ ...a, isSynced: true }));
+				await db.audios.bulkPut(deserializedAudios);
 			});
 
 			if (mergedSettings) settings.set(mergedSettings);
 
 			await updateStats();
-			alert('同步拉取并合并成功');
-		} catch (e) {
+			await updateUnsyncedCount();
+
+			syncProgress = 100;
+			syncStatus = '拉取完成！';
+
+			setTimeout(() => {
+				isSyncing = false;
+				alert(`同步拉取并合并成功！\n- 单词: ${mergedVocabularies.length} 条\n- 音频: ${mergedAudios.length} 条`);
+			}, 500);
+		} catch (e: any) {
 			console.error(e);
-			alert('从本地拉取数据失败');
+			isSyncing = false;
+			alert(`从本地拉取数据失败: ${e.message || '未知错误'}`);
 		}
 	}
 </script>
+
+<!-- Sync Progress Overlay -->
+{#if isSyncing}
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+	<div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+		<div class="mb-4 flex items-center justify-center">
+			<svg class="h-8 w-8 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+				<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+				<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+			</svg>
+		</div>
+		<p class="mb-4 text-center text-lg font-medium text-zinc-900">{syncStatus}</p>
+		<div class="mb-2 h-3 w-full overflow-hidden rounded-full bg-zinc-200">
+			<div 
+				class="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300"
+				style="width: {syncProgress}%"
+			></div>
+		</div>
+		<p class="text-center text-sm text-zinc-500">{syncProgress}%</p>
+	</div>
+</div>
+{/if}
 
 <div class="min-h-screen" style="background-color: var(--color-bg-app); color: var(--color-text-primary)">
 	<div class="mx-auto max-w-4xl space-y-8 px-4 py-6 pb-32">

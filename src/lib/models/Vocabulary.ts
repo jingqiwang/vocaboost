@@ -20,6 +20,8 @@ export class Vocabulary implements VocabularyData {
 	createdAt: Date; // 创建时间
 	updatedAt: Date; // 最后更新时间
 
+	isSynced?: boolean; // 同步状态
+
 	constructor(data: VocabularyData) {
 		this.id = data.id;
 		this.word = data.word;
@@ -37,6 +39,7 @@ export class Vocabulary implements VocabularyData {
 		this.reviewedAt = data.reviewedAt;
 		this.createdAt = data.createdAt;
 		this.updatedAt = data.updatedAt;
+		this.isSynced = data.isSynced;
 	}
 
 	static async create(data: Partial<VocabularyData>): Promise<Vocabulary> {
@@ -63,7 +66,8 @@ export class Vocabulary implements VocabularyData {
 			nextReview: initialNextReview,
 			reviewedAt: null,
 			createdAt: now,
-			updatedAt: now
+			updatedAt: now,
+			isSynced: false // 新单词需要同步
 		};
 
 		// 插入 IndexedDB
@@ -229,6 +233,7 @@ export class Vocabulary implements VocabularyData {
 	 */
 	async save(): Promise<void> {
 		this.updatedAt = new Date();
+		this.isSynced = false; // 修改后需要重新同步
 		const data = this.toData();
 
 		if (this.id) {
@@ -321,7 +326,8 @@ export class Vocabulary implements VocabularyData {
 			forgetCount: this.forgetCount,
 
 			createdAt: this.createdAt,
-			updatedAt: this.updatedAt
+			updatedAt: this.updatedAt,
+			isSynced: this.isSynced
 		};
 	}
 }
