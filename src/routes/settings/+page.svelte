@@ -175,27 +175,79 @@
 		return new Blob([arr], { type });
 	}
 
+	import { mergeVocabularies, mergeLogs, mergeAudios, mergeSettings, studyLogKey, reviewLogKey } from '$lib/utils/sync';
+
+    // ... existing stats code ...
+
 	async function handlePushToLocal() {
 		try {
-			const data = {
+            // 1. Get Local Data
+            const localData = {
 				vocabularies: await db.vocabularies.toArray(),
 				studyLogs: await db.studyLogs.toArray(),
 				vocabReviewLogs: await db.vocabReviewLogs.toArray(),
 				audios: await serializeAudios(),
-				settings: $settings,
+				settings: $settings
+            };
+
+            // 2. Get Remote Data (if exists) to merge
+            let remoteData: any = {};
+			try {
+                const res = await fetch('/api/sync');
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json) remoteData = json;
+                }
+            } catch (e) {
+                // Ignore remote read error, treat as empty
+                console.warn('Could not read remote data for merge, assuming empty.', e);
+            }
+
+            // 3. Hydrate Dates for Remote Data (if any)
+            if (remoteData.vocabularies) remoteData.vocabularies = hydrateDates(remoteData.vocabularies);
+            if (remoteData.studyLogs) remoteData.studyLogs = hydrateDates(remoteData.studyLogs);
+            if (remoteData.vocabReviewLogs) remoteData.vocabReviewLogs = hydrateDates(remoteData.vocabReviewLogs);
+
+            // 4. Merge
+            const mergedVocabularies = mergeVocabularies(localData.vocabularies, remoteData.vocabularies || []);
+            const mergedStudyLogs = mergeLogs(localData.studyLogs, remoteData.studyLogs || [], studyLogKey);
+            const mergedReviewLogs = mergeLogs(localData.vocabReviewLogs, remoteData.vocabReviewLogs || [], reviewLogKey);
+            const mergedAudios = mergeAudios(localData.audios, remoteData.audios || []);
+            const mergedSettings = mergeSettings(localData.settings, remoteData.settings || {});
+
+            // 5. Construct Payload
+			const payload = {
+				vocabularies: mergedVocabularies,
+				studyLogs: mergedStudyLogs,
+				vocabReviewLogs: mergedReviewLogs,
+				audios: mergedAudios,
+				settings: mergedSettings,
 				exportedAt: new Date().toISOString()
 			};
 
+            // 6. Push Merged Data to Remote
 			const response = await fetch('/api/sync', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(data)
+				body: JSON.stringify(payload)
 			});
 
 			if (!response.ok) throw new Error('同步失败');
 			
 			const result = await response.json();
-			alert(`同步成功！数据已保存至：\n${result.path}`);
+
+            // 7. Update Local DB with Merged Data (to stay in sync)
+            await db.transaction('rw', db.vocabularies, db.studyLogs, db.vocabReviewLogs, db.audios, async () => {
+                await db.vocabularies.bulkPut(mergedVocabularies);
+                await db.studyLogs.bulkPut(mergedStudyLogs);
+                await db.vocabReviewLogs.bulkPut(mergedReviewLogs);
+                await db.audios.bulkPut(deserializeAudios(mergedAudios));
+            });
+            
+            if (mergedSettings) settings.set(mergedSettings);
+            await updateStats();
+
+			alert(`同步成功 (已合并)！数据已保存至：\n${result.path}`);
 		} catch (e) {
 			console.error(e);
 			alert('向本地推送数据失败');
@@ -203,31 +255,52 @@
 	}
 
 	async function handlePullFromLocal() {
-		if (!confirm('警告：从本地文件拉取数据将覆盖现有部分数据，确定继续吗？')) return;
+		if (!confirm('确定要从本地文件拉取数据并合并吗？')) return;
 
 		try {
+            // 1. Fetch Remote
 			const response = await fetch('/api/sync');
 			if (!response.ok) throw new Error('读取同步文件失败');
 			
-			const data = await response.json();
-			if (!data) {
+			const remoteData = await response.json();
+			if (!remoteData) {
 				alert('未找到同步文件，请先执行“推送到本地文件”');
 				return;
 			}
 
+            // 2. Get Local Data
+            const localData = {
+				vocabularies: await db.vocabularies.toArray(),
+				studyLogs: await db.studyLogs.toArray(),
+				vocabReviewLogs: await db.vocabReviewLogs.toArray(),
+				audios: await serializeAudios(),
+				settings: $settings
+            };
+
+            // 3. Hydrate Remote Dates
+            if (remoteData.vocabularies) remoteData.vocabularies = hydrateDates(remoteData.vocabularies);
+            if (remoteData.studyLogs) remoteData.studyLogs = hydrateDates(remoteData.studyLogs);
+            if (remoteData.vocabReviewLogs) remoteData.vocabReviewLogs = hydrateDates(remoteData.vocabReviewLogs);
+
+            // 4. Merge
+            const mergedVocabularies = mergeVocabularies(localData.vocabularies, remoteData.vocabularies || []);
+            const mergedStudyLogs = mergeLogs(localData.studyLogs, remoteData.studyLogs || [], studyLogKey);
+            const mergedReviewLogs = mergeLogs(localData.vocabReviewLogs, remoteData.vocabReviewLogs || [], reviewLogKey);
+            const mergedAudios = mergeAudios(localData.audios, remoteData.audios || []);
+            const mergedSettings = mergeSettings(localData.settings, remoteData.settings || {});
+
+            // 5. Update Local DB Only
 			await db.transaction('rw', db.vocabularies, db.studyLogs, db.vocabReviewLogs, db.audios, async () => {
-				if (data.vocabularies) await db.vocabularies.bulkPut(hydrateDates(data.vocabularies));
-				if (data.studyLogs) await db.studyLogs.bulkPut(hydrateDates(data.studyLogs));
-				if (data.vocabReviewLogs) await db.vocabReviewLogs.bulkPut(hydrateDates(data.vocabReviewLogs));
-				if (data.audios) await db.audios.bulkPut(deserializeAudios(data.audios));
+				await db.vocabularies.bulkPut(mergedVocabularies);
+				await db.studyLogs.bulkPut(mergedStudyLogs);
+				await db.vocabReviewLogs.bulkPut(mergedReviewLogs);
+				await db.audios.bulkPut(deserializeAudios(mergedAudios));
 			});
 
-			if (data.settings) {
-				settings.set(data.settings);
-			}
+			if (mergedSettings) settings.set(mergedSettings);
 
 			await updateStats();
-			alert('同步拉取成功');
+			alert('同步拉取并合并成功');
 		} catch (e) {
 			console.error(e);
 			alert('从本地拉取数据失败');
