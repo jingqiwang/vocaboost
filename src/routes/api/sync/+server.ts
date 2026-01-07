@@ -1,4 +1,10 @@
 import { json, error } from '@sveltejs/kit';
+import type { Config } from '@sveltejs/kit';
+
+export const config: Config = {
+    bodySizeLimit: '10M'
+};
+
 import type { RequestHandler } from './$types';
 import fs from 'fs/promises';
 import path from 'path';
