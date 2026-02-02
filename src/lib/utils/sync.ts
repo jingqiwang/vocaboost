@@ -50,7 +50,7 @@ export function mergeVocabularies(local: VocabularyData[], remote: VocabularyDat
     return Array.from(map.values());
 }
 
-export function mergeLogs<T extends { createdAt?: Date | string, word?: string, id?: number }>(
+export function mergeLogs<T extends { createdAt?: Date | string, word?: string, id?: number, knowCount?: number, vagueCount?: number, forgetCount?: number, accuracyRate?: number }>(
     local: T[], 
     remote: T[], 
     uniqueKeyBuilder: (item: T) => string
@@ -58,10 +58,20 @@ export function mergeLogs<T extends { createdAt?: Date | string, word?: string, 
     const map = new Map<string, T>();
 
     // 1. Process local items (Trusted IDs)
+    let localOverwrites = 0;
     for (const item of local) {
         const key = uniqueKeyBuilder(item);
+        if (map.has(key)) localOverwrites++;
         map.set(key, item);
     }
+
+    // #region agent log
+    if (typeof fetch !== 'undefined') {
+        const keys = local.map(uniqueKeyBuilder);
+        const uniqueKeys = new Set(keys).size;
+        fetch('http://127.0.0.1:7242/ingest/1475ee5d-0a75-4646-bac4-955ddd8ff015', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'sync.ts:mergeLogs', message: 'local key collision', data: { localLength: local.length, uniqueKeysAfterLocal: uniqueKeys, localOverwrites }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H1' }) }).catch(() => {});
+    }
+    // #endregion
 
     // 2. Process remote items
     for (const item of remote) {
@@ -82,9 +92,12 @@ export function mergeLogs<T extends { createdAt?: Date | string, word?: string, 
     });
 }
 
-// For logs, unique key usually involves timestamp + word (if available)
-export const studyLogKey = (item: StudyLogData) => `${getTs(item.createdAt)}`;
-export const reviewLogKey = (item: VocabReviewLogData) => `${item.word}_${getTs(item.createdAt)}`;
+// StudyLog: prefer id when present (local records) so we never collapse; otherwise timestamp + stats
+export const studyLogKey = (item: StudyLogData) =>
+	item.id != null ? `id_${item.id}` : `${getTs(item.createdAt)}_${item.knowCount}_${item.vagueCount}_${item.forgetCount}_${item.accuracyRate}`;
+// VocabReviewLog: prefer id when present; otherwise word + timestamp
+export const reviewLogKey = (item: VocabReviewLogData) =>
+	item.id != null ? `id_${item.id}` : `${item.word}_${getTs(item.createdAt)}`;
 
 export function mergeAudios(local: any[], remote: any[]): any[] {
     const map = new Map<string, any>();
