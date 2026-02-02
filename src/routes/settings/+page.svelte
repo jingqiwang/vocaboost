@@ -209,12 +209,6 @@
 			const allStudyLogs = await db.studyLogs.toArray();
 			const allReviewLogs = await db.vocabReviewLogs.toArray();
 
-			// #region agent log
-			const localStudyLogKeys = allStudyLogs.map((l: any) => studyLogKey(l));
-			const uniqueLocalKeys = new Set(localStudyLogKeys).size;
-			fetch('http://127.0.0.1:7242/ingest/1475ee5d-0a75-4646-bac4-955ddd8ff015', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings+page.svelte:push', message: 'before merge', data: { localStudyLogsCount: allStudyLogs.length, uniqueKeysCount: uniqueLocalKeys, sampleKeys: localStudyLogKeys.slice(0, 5) }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H1' }) }).catch(() => {});
-			// #endregion
-
 			syncProgress = 20;
 			syncStatus = `序列化音频 (${unsyncedAudios.length} 个未同步)...`;
 
@@ -252,9 +246,6 @@
 			if (remoteData.studyLogs) remoteData.studyLogs = hydrateDates(remoteData.studyLogs);
 			if (remoteData.vocabReviewLogs) remoteData.vocabReviewLogs = hydrateDates(remoteData.vocabReviewLogs);
 
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/1475ee5d-0a75-4646-bac4-955ddd8ff015', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings+page.svelte:push:merge', message: 'remote before merge', data: { remoteStudyLogsLength: (remoteData.studyLogs || []).length }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H2' }) }).catch(() => {});
-			// #endregion
 			// 4. Merge (including audios)
 			const mergedVocabularies = mergeVocabularies(localData.vocabularies, remoteData.vocabularies || []);
 			const mergedStudyLogs = mergeLogs(localData.studyLogs, remoteData.studyLogs || [], studyLogKey);
@@ -262,9 +253,6 @@
 			const mergedAudios = mergeAudios(localData.audios, remoteData.audios || []);
 			const mergedSettings = mergeSettings(localData.settings, remoteData.settings || {});
 
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/1475ee5d-0a75-4646-bac4-955ddd8ff015', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings+page.svelte:push:afterMerge', message: 'merged studyLogs', data: { mergedStudyLogsCount: mergedStudyLogs.length, localCount: localData.studyLogs.length, mergedLessThanLocal: mergedStudyLogs.length < localData.studyLogs.length }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H1,H4' }) }).catch(() => {});
-			// #endregion
 			syncProgress = 50;
 			syncStatus = '构建同步数据包...';
 
@@ -301,10 +289,6 @@
 			syncProgress = 80;
 			syncStatus = '更新本地数据库...';
 
-			// #region agent log
-			const countBeforeTx = await db.studyLogs.count();
-			fetch('http://127.0.0.1:7242/ingest/1475ee5d-0a75-4646-bac4-955ddd8ff015', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings+page.svelte:beforeBulkPut', message: 'before transaction', data: { studyLogsCountBefore: countBeforeTx, mergedStudyLogsLength: mergedStudyLogs.length }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H3' }) }).catch(() => {});
-			// #endregion
 			// 7. Update Local DB with Merged Data and mark as synced
 			// Use replace semantics for logs: clear then bulkPut so local table exactly equals merged result (avoids stale records)
 			await db.transaction('rw', db.vocabularies, db.studyLogs, db.vocabReviewLogs, db.audios, async () => {
@@ -317,10 +301,6 @@
 				const deserializedAudios = deserializeAudios(audiosWithSyncFlag).map((a: any) => ({ ...a, isSynced: true }));
 				await db.audios.bulkPut(deserializedAudios);
 			});
-			// #region agent log
-			const countAfterTx = await db.studyLogs.count();
-			fetch('http://127.0.0.1:7242/ingest/1475ee5d-0a75-4646-bac4-955ddd8ff015', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'settings+page.svelte:afterBulkPut', message: 'after transaction', data: { studyLogsCountAfter: countAfterTx }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H3' }) }).catch(() => {});
-			// #endregion
 
 			if (mergedSettings) settings.set(mergedSettings);
 			await updateStats();

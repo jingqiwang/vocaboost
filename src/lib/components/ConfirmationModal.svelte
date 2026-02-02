@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { fade, scale } from 'svelte/transition';
 
-	let { 
-		show = $bindable(false), 
-		title = '确认', 
-		message = '', 
-		confirmText = '确定', 
+	let {
+		show = $bindable(false),
+		title = '确认',
+		message = '',
+		confirmText = '确定',
 		cancelText = '取消',
 		type = 'warning',
-		onConfirm = undefined, 
-		onCancel = undefined 
+		onConfirm = undefined,
+		onCancel = undefined
 	} = $props();
 
 	function handleConfirm() {
@@ -21,17 +21,35 @@
 		onCancel?.();
 		show = false;
 	}
+
+	$effect(() => {
+		if (typeof window === 'undefined' || !show) return;
+		const fn = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') handleCancel();
+		};
+		window.addEventListener('keydown', fn);
+		return () => window.removeEventListener('keydown', fn);
+	});
 </script>
 
 {#if show}
-	<div 
+	<div
 		class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
 		transition:fade={{ duration: 200 }}
 	>
-		<!-- Backdrop -->
-		<div 
-			class="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+		<!-- Backdrop: click or Space/Enter to close -->
+		<div
+			role="button"
+			tabindex="0"
+			class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+			aria-label="关闭"
 			onclick={handleCancel}
+			onkeydown={(e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					handleCancel();
+				}
+			}}
 		></div>
 
 		<!-- Modal Content -->

@@ -247,59 +247,65 @@ export class Vocabulary implements VocabularyData {
 	}
 
 	/**
-	 *
-	 * @param result 更新单词的下次 review 时间，使用的是 SM2 记忆法
-	 * @returns
+	 * 只更新复习统计与 EF，不更新 nextReview。
+	 * 用于 vague/forget：本轮回炉，仅在选 know 时才更新下次复习日。
 	 */
-	updateNextReview(result: string): Vocabulary {
-		let { interval, easeFactor, knowCount, vagueCount, nextReview, forgetCount, status } = this;
+	updateReviewStats(result: 'vague' | 'forget'): Vocabulary {
+		const newEaseFactor =
+			result === 'vague'
+				? Math.max(1.3, this.easeFactor - 0.15)
+				: Math.max(1.3, this.easeFactor - 0.2);
 
-		switch (result) {
-			case 'know':
-				knowCount++;
-				easeFactor += 0.1;
-				status = interval >= 30 ? 'mastered' : 'learning';
-				// 间隔计算逻辑：1 -> 2 -> interval * EF
-				if (knowCount === 1) {
-					interval = 1;
-				} else if (knowCount === 2) {
-					interval = 2;
-				} else {
-					interval = Math.max(1, Math.round(interval * easeFactor));
-				}
-				break;
-			case 'vague':
-				// 模糊：不增加成功计数，间隔仅微增，降低 EF
-				vagueCount++;
-				// 模糊处理：间隔只增加 20%，不计入连续成功，EF 轻微惩罚
-				easeFactor = Math.max(1.3, easeFactor - 0.15);
-				interval = Math.max(1, Math.round(interval * 1.2));
-				status = 'learning';
-				break;
-
-			case 'forget':
-				// 忘记：彻底重置
-				forgetCount++;
-				knowCount = 0;
-				interval = 1;
-				easeFactor = Math.max(1.3, easeFactor - 0.2);
-				status = 'learning';
-				break;
+		if (result === 'vague') {
+			this.vagueCount++;
+		} else {
+			this.forgetCount++;
+			this.knowCount = 0;
 		}
 
-		// Update nextReview for all cases
+		// 先写日志（用当前 interval/nextReview，不变）
+		VocabReviewLog.create(this, result, this.interval, newEaseFactor, this.nextReview);
+
+		this.easeFactor = newEaseFactor;
+		this.status = 'learning';
+		this.reviewedAt = new Date();
+		this.save();
+
+		return this;
+	}
+
+	/**
+	 * 更新单词的下次 review 时间，仅用于 result === 'know'，使用 SM2 记忆法。
+	 * 第二次间隔为 6 天（标准 SM2），EF 上限 2.5。
+	 */
+	updateNextReview(result: string): Vocabulary {
+		if (result !== 'know') return this;
+
+		let { interval, easeFactor, knowCount, nextReview, status } = this;
+
+		knowCount++;
+		// EF 增长但设上限 2.5
+		easeFactor = Math.min(2.5, easeFactor + 0.1);
+		status = interval >= 30 ? 'mastered' : 'learning';
+
+		if (knowCount === 1) {
+			interval = 1;
+		} else if (knowCount === 2) {
+			interval = 6; // 标准 SM2 第二次间隔 6 天
+		} else {
+			interval = Math.max(1, Math.round(interval * easeFactor));
+		}
+
 		const newNextDate = new Date();
 		newNextDate.setDate(newNextDate.getDate() + interval);
-		newNextDate.setHours(0, 0, 0, 0); // 极其重要：方便查询今天到期的单词
+		newNextDate.setHours(0, 0, 0, 0);
 		nextReview = newNextDate;
 
-		VocabReviewLog.create(this, result, interval, easeFactor, nextReview);
+		VocabReviewLog.create(this, 'know', interval, easeFactor, nextReview);
 
 		this.interval = interval;
 		this.easeFactor = easeFactor;
 		this.knowCount = knowCount;
-		this.vagueCount = vagueCount;
-		this.forgetCount = forgetCount;
 		this.status = status;
 		this.nextReview = nextReview;
 		this.reviewedAt = new Date();

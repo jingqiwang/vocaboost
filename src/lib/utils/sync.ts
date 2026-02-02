@@ -58,20 +58,10 @@ export function mergeLogs<T extends { createdAt?: Date | string, word?: string, 
     const map = new Map<string, T>();
 
     // 1. Process local items (Trusted IDs)
-    let localOverwrites = 0;
     for (const item of local) {
         const key = uniqueKeyBuilder(item);
-        if (map.has(key)) localOverwrites++;
         map.set(key, item);
     }
-
-    // #region agent log
-    if (typeof fetch !== 'undefined') {
-        const keys = local.map(uniqueKeyBuilder);
-        const uniqueKeys = new Set(keys).size;
-        fetch('http://127.0.0.1:7242/ingest/1475ee5d-0a75-4646-bac4-955ddd8ff015', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'sync.ts:mergeLogs', message: 'local key collision', data: { localLength: local.length, uniqueKeysAfterLocal: uniqueKeys, localOverwrites }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H1' }) }).catch(() => {});
-    }
-    // #endregion
 
     // 2. Process remote items
     for (const item of remote) {
